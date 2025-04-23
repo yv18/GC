@@ -77,7 +77,7 @@ function Chat() {
       <div className="hidden md:flex w-1/3 flex-col p-4 border-r border-white/20">
         <h2 className="text-white text-2xl font-semibold mb-4">Contacts</h2>
         <div className="flex items-center gap-3 mb-4 bg-white/20 p-3 rounded-xl hover:bg-white/30 cursor-pointer transition">
-          <img src= "https://wallpaperaccess.com/full/9290141.jpg" className="w-12 h-12 rounded-full" alt="User" />
+          <img src= "https://wallpaperaccess.com/full/9290141.jpg" className="w-12 h-12 rounded-full object-cover" alt="User" />
           <div>
             <p className="text-white font-semibold">Group Chat</p>
             <p className="text-sm text-white/70">Have a fun guys..</p>
@@ -88,7 +88,7 @@ function Chat() {
       <div className="flex flex-col w-full md:w-2/3 h-full">
         <div className="flex justify-between items-center bg-white/20 p-4 rounded-t-3xl backdrop-blur-md">
           <div className="flex items-center gap-4">
-            <img src="https://wallpaperaccess.com/full/9290141.jpg" className="w-12 h-12 rounded-full" alt="Profile" />
+            <img src="https://wallpaperaccess.com/full/9290141.jpg" className="w-12 h-12 rounded-full object-cover" alt="Profile" />
             <div>
               <h3 className="text-black font-semibold text-lg">Group Chat</h3>
               <p className="text-sm text-white/70 italic">{typingIndicator}</p>
