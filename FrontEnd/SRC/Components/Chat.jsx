@@ -123,6 +123,7 @@ function Chat() {
               onChange={(e) => setMessage(e.target.value)}
               onInput={startTyping}
               onBlur={stopTyping}
+              style = {{color: "black"}}
               placeholder="Type your message..."
               className="custom-input flex-1 px-4 py-2 rounded-full border border-white/30 bg-white/20 text-white placeholder-white/70 focus:outline-none"
             />
