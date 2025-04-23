@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>GC</title>
+      <!-- Font Awesome -->
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+
+      <!-- Tailwind CDN (used at runtime only for prototyping) -->
+      <script src="https://cdn.tailwindcss.com"></script>
+  
+      <!-- Optional custom styles -->
+      <style>
+        .custom-input::placeholder {
+          color: gray;
+          opacity: 1;
+        }
+
+        .main {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          margin: 10px;
+        }
+      </style>
+  </head>
+  <body class="bg-gradient-to-br from-purple-300 via-pink-300 to-blue-300 bg-no-repeat bg-cover min-h-screen">
+    <div id="emp-Data" class="main"></div>
+    
+    <script src="./app.bundle.js"></script>
+    <script src="./vendor.bundle.js"></script>
+  </body>
+</html>
+
