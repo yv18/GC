@@ -181,9 +181,9 @@ function Chat() {
           </div>
           <div className="flex items-center gap-4">
             <button onClick={toggleTheme} className="text-xl">
-              {theme === 'dark' ? '⛅' : '🌙'}
+              {theme === 'dark' ? '🌞' : '🌙'}
             </button>
-            {/* <i className={`fas fa-phone-alt ${theme === 'dark' ? 'text-gray-100' : 'text-black'} text-xl`}></i> */}
+            <i className={`fas fa-phone-alt ${theme === 'dark' ? 'text-gray-100' : 'text-black'} text-xl`}></i>
           </div>
         </div>
 
