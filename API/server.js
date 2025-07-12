@@ -1,10 +1,10 @@
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
-const path = require('path');
-const app = express();
 const cors = require('cors');
+const path = require('path');
 
+const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
@@ -28,11 +28,22 @@ app.get("/", (req, res) => {
 // In-memory chat message store
 let messages = [];
 
+// ✅ Track connected usernames
+const connectedUsers = new Set();
+
 io.on('connection', (socket) => {
   console.log('A user connected');
 
-  // Send chat history to the newly connected client
+  // Send chat history
   socket.emit('chat history', messages);
+
+  // ✅ Handle join event to store username
+  socket.on('join', (username) => {
+    socket.username = username; // store on socket
+    connectedUsers.add(username);
+    io.emit('user list', Array.from(connectedUsers));
+    console.log(`✅ ${username} joined. Users online: ${connectedUsers.size}`);
+  });
 
   // When a message is sent
   socket.on('chat message', (data) => {
@@ -49,8 +60,15 @@ io.on('connection', (socket) => {
     socket.broadcast.emit('stop typing', sender);
   });
 
+  // ✅ Remove user when they disconnect
   socket.on('disconnect', () => {
-    console.log('User disconnected');
+    if (socket.username) {
+      connectedUsers.delete(socket.username);
+      io.emit('user list', Array.from(connectedUsers));
+      console.log(`❌ ${socket.username} disconnected. Users online: ${connectedUsers.size}`);
+    } else {
+      console.log('User disconnected');
+    }
   });
 });
 

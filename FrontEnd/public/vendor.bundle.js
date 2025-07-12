@@ -1,5 +1,5 @@
 "use strict";
-(self["webpackChunktirthpatel"] = self["webpackChunktirthpatel"] || []).push([["vendor"],{
+(self["webpackChunkyashraj"] = self["webpackChunkyashraj"] || []).push([["vendor"],{
 
 /***/ "./node_modules/@remix-run/router/dist/router.js":
 /*!*******************************************************!*\
