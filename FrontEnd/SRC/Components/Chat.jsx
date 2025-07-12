@@ -183,7 +183,7 @@ function Chat() {
             <button onClick={toggleTheme} className="text-xl">
               {theme === 'dark' ? '⛅' : '🌙'}
             </button>
-            <i className={`fas fa-phone-alt ${theme === 'dark' ? 'text-gray-100' : 'text-black'} text-xl`}></i>
+            {/* <i className={`fas fa-phone-alt ${theme === 'dark' ? 'text-gray-100' : 'text-black'} text-xl`}></i> */}
           </div>
         </div>
 
@@ -207,7 +207,7 @@ function Chat() {
                     </a>
                   )}
                   <span style={{ fontSize: '10px' }} className="block mt-1">
-                    {msg.time} {msg.sender === sender && <>{msg.seen ? '✔' : '✔✔'}</>}
+                    {msg.time} {msg.sender === sender && <>{msg.seen ? '✔✔' : '✔'}</>}
                   </span>
                 </div>
               </li>
