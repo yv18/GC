@@ -8,10 +8,10 @@ function Chat() {
   const [messages, setMessages] = useState([]);
   const [typingIndicator, setTypingIndicator] = useState('');
   const [onlineUsers, setOnlineUsers] = useState([]);
-  const [theme, setTheme] = useState('dark'); // ✅ theme toggle
+  const [theme, setTheme] = useState('dark');
+  const [showContacts, setShowContacts] = useState(false); // ✅ mobile drawer
   const messagesEndRef = useRef(null);
 
-  // ✅ Ask notification permission
   useEffect(() => {
     if (Notification.permission !== "granted") {
       Notification.requestPermission();
@@ -38,8 +38,6 @@ function Chat() {
 
     socket.on('chat message', (data) => {
       setMessages((prev) => [...prev, { ...data, seen: false }]);
-
-      // ✅ Show push notification for others' messages
       if (data.sender !== stored && Notification.permission === "granted") {
         new Notification(`${data.sender} says:`, {
           body: data.message ? data.message : "Sent an image",
@@ -59,7 +57,6 @@ function Chat() {
       setOnlineUsers(users);
     });
 
-    // ✅ Paste images
     const handlePaste = (e) => {
       const items = e.clipboardData.items;
       for (const item of items) {
@@ -93,13 +90,10 @@ function Chat() {
     };
   }, []);
 
-  // ✅ Auto scroll and mark as read
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-
-    // Emit read receipt for all visible messages
     socket.emit('read', { reader: sender });
   }, [messages]);
 
@@ -135,13 +129,18 @@ function Chat() {
     setTheme(theme === 'dark' ? 'light' : 'dark');
   };
 
-  const isUserOnline = (name) => onlineUsers.includes(name);
+  const toggleContacts = () => {
+    setShowContacts(!showContacts);
+  };
 
   return (
-    <div className={`${theme === 'dark' ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-black' : 'bg-white'} w-full max-w-6xl h-[90vh] flex rounded-3xl shadow-2xl overflow-hidden`}>
-      <div className="hidden md:flex w-1/3 flex-col p-4 border-r border-gray-700">
-        <h2 className={`${theme === 'dark' ? 'text-gray-100' : 'text-black'} text-2xl font-semibold mb-4`}>
+    <div className={`${theme === 'dark' ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-black' : 'bg-white'} w-full max-w-6xl h-[90vh] flex flex-col md:flex-row rounded-3xl shadow-2xl overflow-hidden`}>
+
+      {/* Contacts Panel */}
+      <div className={`fixed inset-0 z-50 md:static md:flex ${showContacts ? 'flex' : 'hidden'} md:w-1/3 flex-col p-4 border-r border-gray-700 bg-gray-900 md:bg-transparent`}>
+        <h2 className="text-gray-100 text-2xl font-semibold mb-4 flex justify-between items-center">
           Contacts
+          <button onClick={toggleContacts} className="md:hidden text-2xl">✖</button>
         </h2>
         {onlineUsers.map((user, idx) => (
           <div
@@ -154,7 +153,7 @@ function Chat() {
               alt="User"
             />
             <div>
-              <p className={`${theme === 'dark' ? 'text-gray-100' : 'text-black'} font-semibold flex items-center gap-2`}>
+              <p className="text-gray-100 font-semibold flex items-center gap-2">
                 {user}
                 <span className="w-3 h-3 rounded-full bg-green-500"></span>
               </p>
@@ -164,9 +163,11 @@ function Chat() {
         ))}
       </div>
 
+      {/* Main Chat Panel */}
       <div className="flex flex-col w-full md:w-2/3 h-full">
         <div className={`flex justify-between items-center ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-100'} p-4 rounded-t-3xl`}>
           <div className="flex items-center gap-4">
+            <button onClick={toggleContacts} className="md:hidden text-2xl">👥</button>
             <img
               src="https://wallpaperaccess.com/full/9290141.jpg"
               className="w-12 h-12 rounded-full object-cover"
@@ -181,7 +182,7 @@ function Chat() {
           </div>
           <div className="flex items-center gap-4">
             <button onClick={toggleTheme} className="text-xl">
-              {theme === 'dark' ? '🌞' : '🌙'}
+              {theme === 'dark' ? '🌤️' : '🌙'}
             </button>
             <i className={`fas fa-phone-alt ${theme === 'dark' ? 'text-gray-100' : 'text-black'} text-xl`}></i>
           </div>
