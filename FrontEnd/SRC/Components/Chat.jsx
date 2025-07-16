@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import socket from "./socket.js";
 import '@fortawesome/fontawesome-free/css/all.min.css';
+import VK from "../Components/Images/VK.jpg";
 
 function Chat() {
   const [sender, setSender] = useState('');
@@ -9,7 +10,7 @@ function Chat() {
   const [typingIndicator, setTypingIndicator] = useState('');
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [theme, setTheme] = useState('dark');
-  const [showContacts, setShowContacts] = useState(false); // ✅ mobile drawer
+  const [showContacts, setShowContacts] = useState(false);
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -46,7 +47,13 @@ function Chat() {
     });
 
     socket.on('typing', (data) => {
-      setTypingIndicator(`${data.sender} is typing...`);
+      if (data.sender !== stored) {
+        if (data.text && data.text.trim() !== '') {
+          setTypingIndicator(`${data.sender} is typing: "${data.text}"`);
+        } else {
+          setTypingIndicator(`${data.sender} is typing...`);
+        }
+      }
     });
 
     socket.on('stop typing', () => {
@@ -111,11 +118,14 @@ function Chat() {
     socket.emit('chat message', newMessage);
     setMessage('');
     setTypingIndicator('');
+    socket.emit('stop typing', sender);
   };
 
   let typingTimer;
-  const startTyping = () => {
-    socket.emit('typing', { sender });
+  const handleTyping = (e) => {
+    const currentText = e.target.value;
+    setMessage(currentText);
+    socket.emit('typing', { sender, text: currentText });
     clearTimeout(typingTimer);
   };
 
@@ -148,7 +158,7 @@ function Chat() {
             className={`flex items-center gap-3 mb-4 ${theme === 'dark' ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-200 hover:bg-gray-300'} p-3 rounded-xl cursor-pointer transition`}
           >
             <img
-              src="https://wallpaperaccess.com/full/9290141.jpg"
+              src={VK}
               className="w-12 h-12 rounded-full object-cover"
               alt="User"
             />
@@ -169,7 +179,7 @@ function Chat() {
           <div className="flex items-center gap-4">
             <button onClick={toggleContacts} className="md:hidden text-2xl">👥</button>
             <img
-              src="https://wallpaperaccess.com/full/9290141.jpg"
+              src={VK}
               className="w-12 h-12 rounded-full object-cover"
               alt="Profile"
             />
@@ -184,7 +194,6 @@ function Chat() {
             <button onClick={toggleTheme} className="text-xl">
               {theme === 'dark' ? '🌤️' : '🌙'}
             </button>
-            <i className={`fas fa-phone-alt ${theme === 'dark' ? 'text-gray-100' : 'text-black'} text-xl`}></i>
           </div>
         </div>
 
@@ -208,7 +217,7 @@ function Chat() {
                     </a>
                   )}
                   <span style={{ fontSize: '10px' }} className="block mt-1">
-                    {msg.time} {msg.sender === sender && <>{msg.seen ? '✔✔' : '✔'}</>}
+                    {msg.time} {msg.sender === sender && <>{msg.seen ? '✔' : '✔✔'}</>}
                   </span>
                 </div>
               </li>
@@ -222,8 +231,7 @@ function Chat() {
             <input
               type="text"
               value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onInput={startTyping}
+              onChange={handleTyping}
               onBlur={stopTyping}
               placeholder="Type your message..."
               className={`flex-1 px-4 py-2 rounded-full border ${theme === 'dark' ? 'border-gray-600 bg-gray-700 text-gray-100 placeholder-gray-400' : 'border-gray-400 bg-white text-black placeholder-gray-600'} focus:outline-none`}
