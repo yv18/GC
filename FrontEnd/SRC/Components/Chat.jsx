@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import socket from "./socket.js";
 import '@fortawesome/fontawesome-free/css/all.min.css';
-import VK from "../Components/Images/VK.jpg";
+
 
 function Chat() {
   const [sender, setSender] = useState('');
@@ -158,7 +158,7 @@ function Chat() {
             className={`flex items-center gap-3 mb-4 ${theme === 'dark' ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-200 hover:bg-gray-300'} p-3 rounded-xl cursor-pointer transition`}
           >
             <img
-              src={VK}
+              src="https://th.bing.com/th/id/OIP.0jANl4JCBWISRrslfBRi2wHaEK?w=274&h=180&c=7&r=0&o=7&dpr=1.3&pid=1.7&rm=3"
               className="w-12 h-12 rounded-full object-cover"
               alt="User"
             />
@@ -179,7 +179,7 @@ function Chat() {
           <div className="flex items-center gap-4">
             <button onClick={toggleContacts} className="md:hidden text-2xl">👥</button>
             <img
-              src={VK}
+              src="https://th.bing.com/th/id/OIP.0jANl4JCBWISRrslfBRi2wHaEK?w=274&h=180&c=7&r=0&o=7&dpr=1.3&pid=1.7&rm=3"
               className="w-12 h-12 rounded-full object-cover"
               alt="Profile"
             />
