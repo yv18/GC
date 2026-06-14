@@ -1,14 +1,13 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import socket from './socket.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PIXEL AVATAR — deterministic 8×8 sprite from username seed
+// PIXEL AVATAR ENGINE
 // ─────────────────────────────────────────────────────────────────────────────
 function seededRng(seed) {
   let s = [...(seed || '?')].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 0x12345678);
   return () => { s ^= s << 13; s ^= s >> 17; s ^= s << 5; return (s >>> 0) / 0xffffffff; };
 }
-
 const PALETTES = [
   ['#6366f1','#818cf8','#c7d2fe','#1e1b4b'],
   ['#ec4899','#f472b6','#fce7f3','#500724'],
@@ -21,118 +20,146 @@ const PALETTES = [
   ['#f97316','#fb923c','#ffedd5','#431407'],
   ['#06b6d4','#22d3ee','#cffafe','#0c4a6e'],
 ];
-
 function buildPixelGrid(name) {
   const rng = seededRng(name);
-  const palette = PALETTES[Math.floor(rng() * PALETTES.length)];
-  const [primary, secondary, highlight, dark] = palette;
+  const pal = PALETTES[Math.floor(rng() * PALETTES.length)];
   const grid = [];
   for (let r = 0; r < 8; r++) {
     const half = [];
     for (let c = 0; c < 4; c++) {
       const v = rng();
-      half.push(v < 0.30 ? dark : v < 0.60 ? primary : v < 0.80 ? secondary : v < 0.92 ? highlight : 'transparent');
+      half.push(v < .30 ? pal[3] : v < .60 ? pal[0] : v < .80 ? pal[1] : v < .92 ? pal[2] : 'transparent');
     }
     grid.push([...half, ...[...half].reverse()]);
   }
-  return { grid, palette };
+  return { grid, pal };
 }
-
-function PixelAvatar({ name, size = 32, ring = false }) {
-  const { grid, palette } = buildPixelGrid(name || '?');
-  const [dark] = [palette[3]];
+function PixelAvatar({ name, size = 32, ring = false, ghost = false }) {
+  const { grid, pal } = buildPixelGrid(name || '?');
   return (
-    <div
-      className="flex-shrink-0 select-none"
-      style={{
-        width: size, height: size,
-        borderRadius: 4,
-        overflow: 'hidden',
-        imageRendering: 'pixelated',
-        background: dark,
-        boxShadow: ring ? `0 0 0 2px ${palette[0]}` : undefined,
-      }}
-    >
+    <div style={{
+      width: size, height: size, borderRadius: 4, overflow: 'hidden',
+      imageRendering: 'pixelated', background: pal[3], flexShrink: 0,
+      boxShadow: ring ? `0 0 0 2px ${pal[0]}, 0 0 12px ${pal[0]}55` : undefined,
+      opacity: ghost ? 0.4 : 1, filter: ghost ? 'grayscale(1)' : undefined,
+    }}>
       <svg width={size} height={size} viewBox="0 0 8 8" style={{ imageRendering: 'pixelated', display: 'block' }}>
-        {grid.map((row, r) => row.map((color, c) =>
-          color !== 'transparent'
-            ? <rect key={`${r}-${c}`} x={c} y={r} width={1} height={1} fill={color} />
-            : null
+        {grid.map((row, r) => row.map((col, c) =>
+          col !== 'transparent' ? <rect key={`${r}-${c}`} x={c} y={r} width={1} height={1} fill={col} /> : null
         ))}
       </svg>
     </div>
   );
 }
-
 function accentColor(name) {
   const rng = seededRng(name || '?');
   return PALETTES[Math.floor(rng() * PALETTES.length)][0];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STREAK BADGE
+// CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
-const STREAK_TIMEOUT = 45;
+const EMOJIS = ['👍','❤️','😂','😮','🔥','💯','👏','😢','🎉','💀'];
+const STATUSES = [
+  { value: 'online',   label: 'Online',   color: '#34d399', icon: '🟢' },
+  { value: 'coding',   label: 'Coding',   color: '#60a5fa', icon: '👨‍💻' },
+  { value: 'gaming',   label: 'Gaming',   color: '#a78bfa', icon: '🎮' },
+  { value: 'music',    label: 'Music',    color: '#f472b6', icon: '🎵' },
+  { value: 'afk',      label: 'AFK',      color: '#94a3b8', icon: '😴' },
+  { value: 'busy',     label: 'Busy',     color: '#f87171', icon: '🔴' },
+];
+const CONSEQUENCE_RULES = [
+  { trigger: /fuck|shit|damn/i,  effect: 'flip',   msg: '🙃 Watch your language!' },
+  { trigger: /lol|haha|hehe/i,   effect: 'rainbow', msg: '🌈 Laughing activated rainbow mode!' },
+  { trigger: /spam|spam|spam/i,  effect: 'tiny',   msg: '🤏 Spammers get tiny text!' },
+];
+const BANNED_WORDS_DEFAULT = ['spam'];
+const LANGUAGES = [
+  { code: 'en', label: '🇺🇸 English' },
+  { code: 'es', label: '🇪🇸 Spanish' },
+  { code: 'fr', label: '🇫🇷 French' },
+  { code: 'de', label: '🇩🇪 German' },
+  { code: 'hi', label: '🇮🇳 Hindi' },
+  { code: 'ja', label: '🇯🇵 Japanese' },
+  { code: 'ar', label: '🇸🇦 Arabic' },
+  { code: 'pt', label: '🇧🇷 Portuguese' },
+];
 
-function StreakBadge({ streak, secondsLeft, compact = false }) {
-  const pct  = Math.max(0, secondsLeft / STREAK_TIMEOUT);
-  const hot  = streak >= 10;
-  const warm = streak >= 5;
-  const col  = hot ? '#f97316' : warm ? '#f59e0b' : '#6366f1';
+const formatTime = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+let _id = 0;
+const makeId = () => `msg_${Date.now()}_${_id++}`;
 
-  if (compact) {
-    return (
-      <div className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold"
-        style={{ background: `${col}20`, color: col, border: `1px solid ${col}30` }}>
-        <span style={{ filter: hot ? 'drop-shadow(0 0 3px #f97316)' : 'none' }}>🔥</span>
-        <span>{streak}</span>
-      </div>
-    );
-  }
+// ─────────────────────────────────────────────────────────────────────────────
+// CONFETTI COMPONENT (Cinematic Moment)
+// ─────────────────────────────────────────────────────────────────────────────
+function Confetti({ onDone }) {
+  const particles = useMemo(() => Array.from({ length: 60 }, (_, i) => ({
+    id: i,
+    x: Math.random() * 100,
+    color: ['#6366f1','#ec4899','#f59e0b','#10b981','#3b82f6','#f97316'][i % 6],
+    size: 6 + Math.random() * 8,
+    delay: Math.random() * 0.8,
+    duration: 1.5 + Math.random(),
+  })), []);
+
+  useEffect(() => { const t = setTimeout(onDone, 3500); return () => clearTimeout(t); }, [onDone]);
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-center gap-2">
-        <span className="text-2xl" style={{ filter: hot ? 'drop-shadow(0 0 6px #f97316)' : 'none' }}>🔥</span>
-        <div>
-          <p className="text-white font-bold text-base leading-none">{streak} message{streak !== 1 ? 's' : ''}</p>
-          <p className="text-xs mt-0.5" style={{ color: col }}>
-            {hot ? 'ON FIRE! 🔥' : warm ? 'Heating up!' : 'Keep it going!'}
-          </p>
-        </div>
-      </div>
-      {/* Burn timer bar */}
-      <div className="h-1.5 rounded-full overflow-hidden bg-white/5">
-        <div
-          className="h-full rounded-full transition-all duration-1000"
-          style={{ width: `${pct * 100}%`, background: `linear-gradient(90deg, ${col}, ${col}aa)` }}
-        />
-      </div>
-      <p className="text-[10px] text-slate-600">{Math.round(secondsLeft)}s until streak resets</p>
+    <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 999, overflow: 'hidden' }}>
+      {particles.map(p => (
+        <div key={p.id} style={{
+          position: 'absolute', left: `${p.x}%`, top: -20,
+          width: p.size, height: p.size, borderRadius: 2,
+          background: p.color,
+          animation: `confettiFall ${p.duration}s ${p.delay}s ease-in forwards`,
+        }} />
+      ))}
+      <style>{`
+        @keyframes confettiFall {
+          0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+          100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+        }
+      `}</style>
     </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// REACTION PICKER
+// REACTION PICKER — fixed: uses pointer events, not hover
 // ─────────────────────────────────────────────────────────────────────────────
-const EMOJIS = ['👍','❤️','😂','😮','🔥','💯','👏','😢'];
+function ReactionPicker({ onPick, onClose, isMe }) {
+  const ref = useRef(null);
 
-function ReactionPicker({ onPick, isMe }) {
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+    document.addEventListener('pointerdown', handler);
+    return () => document.removeEventListener('pointerdown', handler);
+  }, [onClose]);
+
   return (
-    <div
-      className="absolute z-30 bottom-full mb-2 bg-[#252638] border border-white/10 rounded-2xl px-2 py-1.5 flex gap-0.5 shadow-2xl"
-      style={{ [isMe ? 'right' : 'left']: 0 }}
-      onMouseDown={e => e.preventDefault()} // keep focus in input
-    >
+    <div ref={ref} style={{
+      position: 'absolute', zIndex: 50,
+      bottom: 'calc(100% + 6px)',
+      [isMe ? 'right' : 'left']: 0,
+      background: '#1a1b2e',
+      border: '1px solid rgba(255,255,255,0.12)',
+      borderRadius: 18, padding: '6px 8px',
+      display: 'flex', gap: 2,
+      boxShadow: '0 8px 40px rgba(0,0,0,0.6)',
+      flexWrap: 'wrap', maxWidth: 260,
+    }}>
       {EMOJIS.map(e => (
-        <button
-          key={e}
-          onClick={() => onPick(e)}
-          className="w-8 h-8 flex items-center justify-center text-lg hover:scale-125 active:scale-95 transition-transform rounded-lg hover:bg-white/10"
-        >
-          {e}
-        </button>
+        <button key={e}
+          onPointerDown={(ev) => { ev.stopPropagation(); onPick(e); onClose(); }}
+          style={{
+            width: 36, height: 36, fontSize: 20, background: 'transparent',
+            border: 'none', cursor: 'pointer', borderRadius: 10,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'transform 0.1s, background 0.1s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.3)'; e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
+          onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.background = 'transparent'; }}
+        >{e}</button>
       ))}
     </div>
   );
@@ -141,97 +168,144 @@ function ReactionPicker({ onPick, isMe }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // MESSAGE BUBBLE
 // ─────────────────────────────────────────────────────────────────────────────
-function MessageBubble({ msg, isMe, showAvatar, showName, onReact, onImageClick }) {
-  const [open, setOpen]       = useState(false);
-  const [hovered, setHovered] = useState(false);
-  const longPressRef          = useRef(null);
-  const reactions             = Object.entries(msg.reactions || {}).filter(([, u]) => u.length > 0);
+function MessageBubble({ msg, isMe, showAvatar, showName, onReact, onImageClick, myUsername, isSpectator, cinematicMsgId }) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [showReactBtn, setShowReactBtn] = useState(false);
+  const longPressRef = useRef(null);
+  const isCinematic = cinematicMsgId === msg.id;
 
-  // Long-press for mobile
-  const startLongPress = () => {
-    longPressRef.current = setTimeout(() => setOpen(true), 450);
-  };
-  const cancelLongPress = () => clearTimeout(longPressRef.current);
+  const reactions = Object.entries(msg.reactions || {}).filter(([, users]) => users.length > 0);
+
+  // Consequence effect on the message
+  let effectStyle = {};
+  let effectClass = '';
+  if (msg.effect === 'flip') effectStyle = { transform: 'scaleY(-1)', display: 'inline-block' };
+  if (msg.effect === 'rainbow') effectClass = 'rainbow-text';
+  if (msg.effect === 'tiny') effectStyle = { fontSize: 9 };
+
+  const startLP = () => { longPressRef.current = setTimeout(() => setPickerOpen(true), 400); };
+  const cancelLP = () => clearTimeout(longPressRef.current);
 
   return (
     <div
-      className={`flex items-end gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => { setHovered(false); setOpen(false); }}
+      style={{
+        display: 'flex', alignItems: 'flex-end', gap: 8,
+        flexDirection: isMe ? 'row-reverse' : 'row',
+        transition: 'all 0.4s',
+        ...(isCinematic ? { transform: 'scale(1.04)', filter: 'drop-shadow(0 0 16px #f59e0b)' } : {}),
+      }}
+      onMouseEnter={() => !isSpectator && setShowReactBtn(true)}
+      onMouseLeave={() => { setShowReactBtn(false); }}
     >
       {/* Avatar */}
       {!isMe && (
-        <div className="w-8 flex-shrink-0 self-end">
-          {showAvatar && <PixelAvatar name={msg.sender} size={28} />}
+        <div style={{ width: 30, flexShrink: 0 }}>
+          {showAvatar && <PixelAvatar name={msg.sender} size={28} ghost={msg.isClone} />}
         </div>
       )}
 
-      <div className={`relative flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[78%] sm:max-w-[62%]`}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start', maxWidth: '72%', position: 'relative' }}>
         {showName && (
-          <p className="text-[11px] font-semibold mb-1 px-1" style={{ color: accentColor(msg.sender) }}>
-            {msg.sender}
-          </p>
+          <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 3, paddingLeft: 2, color: accentColor(msg.sender) }}>
+            {msg.isClone ? `[Auto-${msg.sender}] 🤖` : msg.isAnon ? '👻 Mystery Guest' : msg.sender}
+          </div>
         )}
 
-        <div className="relative">
-          {/* Hover react button — desktop */}
-          {hovered && !open && (
+        <div style={{ position: 'relative' }}>
+          {/* React button */}
+          {showReactBtn && !pickerOpen && !isSpectator && (
             <button
-              onClick={() => setOpen(true)}
-              className={`absolute top-1/2 -translate-y-1/2 z-20 w-7 h-7 rounded-full bg-[#252638] border border-white/10 flex items-center justify-center text-xs hover:scale-110 transition-all ${isMe ? '-left-9' : '-right-9'}`}
+              onPointerDown={(e) => { e.stopPropagation(); setPickerOpen(true); }}
+              style={{
+                position: 'absolute', top: '50%', transform: 'translateY(-50%)',
+                [isMe ? 'left' : 'right']: -34, zIndex: 20,
+                width: 26, height: 26, borderRadius: '50%',
+                background: '#1a1b2e', border: '1px solid rgba(255,255,255,0.12)',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 13, color: '#fff',
+              }}
             >😊</button>
           )}
 
-          {/* Picker */}
-          {open && <ReactionPicker onPick={e => { onReact(msg.id, e); setOpen(false); }} isMe={isMe} />}
+          {pickerOpen && (
+            <ReactionPicker
+              onPick={(emoji) => onReact(msg.id, emoji)}
+              onClose={() => { setPickerOpen(false); setShowReactBtn(false); }}
+              isMe={isMe}
+            />
+          )}
 
           {/* Bubble */}
           <div
-            className={`px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed cursor-default select-text ${
-              isMe
-                ? 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-br-sm'
-                : 'bg-[#1e1f2e] text-slate-200 border border-white/5 rounded-bl-sm'
-            }`}
-            onTouchStart={startLongPress}
-            onTouchEnd={cancelLongPress}
-            onTouchMove={cancelLongPress}
+            onTouchStart={!isSpectator ? startLP : undefined}
+            onTouchEnd={cancelLP}
+            onTouchMove={cancelLP}
+            style={{
+              padding: '10px 14px', borderRadius: 18, fontSize: 14, lineHeight: 1.55,
+              wordBreak: 'break-word', whiteSpace: 'pre-wrap',
+              background: msg.isAnon
+                ? 'linear-gradient(135deg,#374151,#1f2937)'
+                : isMe
+                  ? 'linear-gradient(135deg,#6366f1,#9333ea)'
+                  : '#1e1f2e',
+              color: '#fff',
+              borderBottomRightRadius: isMe ? 4 : 18,
+              borderBottomLeftRadius: isMe ? 18 : 4,
+              border: isMe ? 'none' : '1px solid rgba(255,255,255,0.06)',
+              opacity: msg.isClone ? 0.75 : 1,
+              ...effectStyle,
+            }}
           >
-            {msg.message && <p className="break-words whitespace-pre-wrap">{msg.message}</p>}
+            {msg.replyTo && (
+              <div style={{
+                borderLeft: '2px solid rgba(255,255,255,0.25)', paddingLeft: 8, marginBottom: 6,
+                fontSize: 11, color: 'rgba(255,255,255,0.5)', fontStyle: 'italic',
+              }}>
+                ↩ {msg.replyTo.sender}: {msg.replyTo.message?.slice(0, 60)}
+              </div>
+            )}
+            {msg.translate ? (
+              <>
+                <span className={effectClass} style={effectStyle}>{msg.message}</span>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginTop: 4, fontStyle: 'italic' }}>
+                  🌐 {msg.translate}
+                </div>
+              </>
+            ) : (
+              <span className={effectClass}>{msg.message}</span>
+            )}
             {msg.image && (
-              <img
-                src={msg.image} alt="shared"
-                onClick={() => onImageClick(msg.image)}
-                className="rounded-xl max-w-[220px] cursor-zoom-in mt-1 hover:opacity-90 transition"
-              />
+              <img src={msg.image} alt="shared" onClick={() => onImageClick(msg.image)}
+                style={{ maxWidth: 220, borderRadius: 10, marginTop: 6, display: 'block', cursor: 'zoom-in' }} />
             )}
           </div>
         </div>
 
         {/* Reaction chips */}
         {reactions.length > 0 && (
-          <div className={`flex flex-wrap gap-1 mt-1.5 ${isMe ? 'justify-end' : 'justify-start'}`}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 5, justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
             {reactions.map(([emoji, users]) => (
-              <button
-                key={emoji}
-                onClick={() => onReact(msg.id, emoji)}
-                className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-[#1e1f2e] border border-white/10 text-xs hover:bg-white/10 transition active:scale-95"
+              <button key={emoji}
+                onPointerDown={() => !isSpectator && onReact(msg.id, emoji)}
                 title={users.join(', ')}
-              >
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 3, padding: '3px 8px',
+                  borderRadius: 99, fontSize: 13, cursor: isSpectator ? 'default' : 'pointer',
+                  background: users.includes(myUsername) ? 'rgba(99,102,241,0.25)' : 'rgba(255,255,255,0.06)',
+                  border: `1px solid ${users.includes(myUsername) ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.1)'}`,
+                  color: '#fff', transition: 'all 0.15s',
+                }}>
                 <span>{emoji}</span>
-                <span className="text-slate-400 text-[10px] font-semibold ml-0.5">{users.length}</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8' }}>{users.length}</span>
               </button>
             ))}
           </div>
         )}
 
-        {/* Time + tick */}
-        <div className={`flex items-center gap-1 mt-1 px-1 ${isMe ? 'flex-row-reverse' : ''}`}>
-          <span className="text-[10px] text-slate-600">{msg.time}</span>
-          {isMe && (
-            <svg className="w-3 h-3 text-indigo-400" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
-            </svg>
-          )}
+        {/* Time */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3, flexDirection: isMe ? 'row-reverse' : 'row', paddingLeft: 2 }}>
+          <span style={{ fontSize: 10, color: '#334155' }}>{msg.time}</span>
+          {isMe && <svg width="11" height="11" viewBox="0 0 20 20" fill="#818cf8"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
         </div>
       </div>
     </div>
@@ -239,56 +313,37 @@ function MessageBubble({ msg, isMe, showAvatar, showName, onReact, onImageClick 
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HELPERS
-// ─────────────────────────────────────────────────────────────────────────────
-const formatTime = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-let msgIdCounter = 0;
-const makeId = () => `msg_${Date.now()}_${msgIdCounter++}`;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// NAME MODAL — shows live avatar preview as you type
+// MODALS
 // ─────────────────────────────────────────────────────────────────────────────
 function NameModal({ onSubmit }) {
-  const [val, setVal] = useState('');
-  const inputRef = useRef(null);
-  const preview = val.trim() || 'You';
-
-  useEffect(() => { inputRef.current?.focus(); }, []);
+  const [name, setName] = useState('');
+  const [lang, setLang] = useState('en');
+  const ref = useRef(null);
+  useEffect(() => ref.current?.focus(), []);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md">
-      <div className="bg-[#1a1b2e] border border-white/10 rounded-3xl shadow-2xl p-8 w-full max-w-xs mx-4 flex flex-col items-center gap-5">
-
-        {/* Live avatar preview */}
-        <div className="relative">
-          <div className="p-3 rounded-2xl bg-[#13141f] border border-white/5">
-            <PixelAvatar name={preview} size={80} ring />
-          </div>
-          <div className="absolute -bottom-2 -right-2 text-lg">👾</div>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(16px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div style={{ background: '#1a1b2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 28, padding: 32, width: '100%', maxWidth: 320, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
+        <div style={{ position: 'relative', padding: 12, background: '#13141f', borderRadius: 16, border: '1px solid rgba(255,255,255,0.06)' }}>
+          <PixelAvatar name={name.trim() || 'You'} size={80} ring />
+          <div style={{ position: 'absolute', bottom: -8, right: -8, fontSize: 22 }}>👾</div>
         </div>
-
-        <div className="text-center">
-          <h2 className="text-white text-xl font-bold">Pick your name</h2>
-          <p className="text-slate-500 text-xs mt-1">Your pixel avatar is generated from your name</p>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ color: '#fff', fontWeight: 700, fontSize: 22 }}>Join GroupChat</div>
+          <div style={{ color: '#475569', fontSize: 12, marginTop: 4 }}>Your pixel avatar is unique to your name</div>
         </div>
-
-        <div className="w-full flex flex-col gap-3">
-          <input
-            ref={inputRef}
-            type="text"
-            value={val}
-            onChange={e => setVal(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && val.trim() && onSubmit(val.trim())}
+        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <input ref={ref} value={name} maxLength={24}
+            onChange={e => setName(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && name.trim() && onSubmit(name.trim(), lang)}
             placeholder="Your name…"
-            maxLength={24}
-            className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
-            style={{ fontSize: '16px' }}
-          />
-          <button
-            disabled={!val.trim()}
-            onClick={() => onSubmit(val.trim())}
-            className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-semibold text-sm hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed transition"
-          >
+            style={{ width: '100%', padding: '12px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#fff', fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
+          <select value={lang} onChange={e => setLang(e.target.value)}
+            style={{ width: '100%', padding: '12px 16px', background: '#13141f', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#fff', fontSize: 14, outline: 'none', cursor: 'pointer' }}>
+            {LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
+          </select>
+          <button disabled={!name.trim()} onClick={() => onSubmit(name.trim(), lang)}
+            style={{ width: '100%', padding: 13, borderRadius: 12, background: name.trim() ? 'linear-gradient(135deg,#6366f1,#9333ea)' : 'rgba(255,255,255,0.05)', color: name.trim() ? '#fff' : '#334155', fontWeight: 600, fontSize: 15, border: 'none', cursor: name.trim() ? 'pointer' : 'not-allowed', transition: 'all 0.15s' }}>
             Enter Chat →
           </button>
         </div>
@@ -297,11 +352,164 @@ function NameModal({ onSubmit }) {
   );
 }
 
+function RoomModal({ onClose, onJoin, onCreate, username }) {
+  const [tab, setTab] = useState('join'); // join | create | browse
+  const [code, setCode] = useState('');
+  const [password, setPassword] = useState('');
+  const [roomName, setRoomName] = useState('');
+  const [roomPass, setRoomPass] = useState('');
+  const [spectator, setSpectator] = useState(false);
+  const [publicRooms, setPublicRooms] = useState([]);
+  const [created, setCreated] = useState(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    socket.emit('list rooms');
+    socket.on('room list', setPublicRooms);
+    socket.on('room created', (data) => setCreated(data));
+    socket.on('error', (msg) => setError(msg));
+    return () => { socket.off('room list'); socket.off('room created'); socket.off('error'); };
+  }, []);
+
+  const handleCreate = () => {
+    if (!roomName.trim()) return;
+    socket.emit('create room', { name: roomName.trim(), password: roomPass, username });
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(16px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+      onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div style={{ background: '#1a1b2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 28, padding: 28, width: '100%', maxWidth: 380, maxHeight: '80vh', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+          <div style={{ color: '#fff', fontWeight: 700, fontSize: 18 }}>🏠 Rooms</div>
+          <button onClick={onClose} style={{ color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', fontSize: 20 }}>✕</button>
+        </div>
+
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: 4 }}>
+          {[['join','🔑 Join'],['create','✨ Create'],['browse','🌍 Browse']].map(([t, l]) => (
+            <button key={t} onClick={() => { setTab(t); setError(''); setCreated(null); }}
+              style={{ flex: 1, padding: '8px 4px', borderRadius: 9, fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer', background: tab === t ? 'rgba(99,102,241,0.3)' : 'transparent', color: tab === t ? '#a5b4fc' : '#64748b', transition: 'all 0.15s' }}>
+              {l}
+            </button>
+          ))}
+        </div>
+
+        {error && <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, padding: '8px 12px', color: '#f87171', fontSize: 13, marginBottom: 12 }}>{error}</div>}
+
+        {/* Join tab */}
+        {tab === 'join' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <input value={code} onChange={e => setCode(e.target.value.toUpperCase())} placeholder="Room code (e.g. AB12CD)" maxLength={6}
+              style={{ padding: '12px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#fff', fontSize: 16, outline: 'none', fontFamily: 'monospace', letterSpacing: 4 }} />
+            <input value={password} onChange={e => setPassword(e.target.value)} placeholder="Password (if required)"
+              type="password"
+              style={{ padding: '12px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#fff', fontSize: 15, outline: 'none' }} />
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', color: '#94a3b8', fontSize: 13 }}>
+              <input type="checkbox" checked={spectator} onChange={e => setSpectator(e.target.checked)} />
+              👁️ Join as Spectator (invisible — read only)
+            </label>
+            <button disabled={code.length < 4} onClick={() => onJoin(code, password, spectator)}
+              style={{ padding: 13, borderRadius: 12, background: code.length >= 4 ? 'linear-gradient(135deg,#6366f1,#9333ea)' : 'rgba(255,255,255,0.05)', color: '#fff', fontWeight: 600, border: 'none', cursor: code.length >= 4 ? 'pointer' : 'not-allowed' }}>
+              Join Room
+            </button>
+          </div>
+        )}
+
+        {/* Create tab */}
+        {tab === 'create' && !created && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <input value={roomName} onChange={e => setRoomName(e.target.value)} placeholder="Room name…" maxLength={30}
+              style={{ padding: '12px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#fff', fontSize: 16, outline: 'none' }} />
+            <input value={roomPass} onChange={e => setRoomPass(e.target.value)} placeholder="Password (optional)" type="password"
+              style={{ padding: '12px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#fff', fontSize: 15, outline: 'none' }} />
+            <button disabled={!roomName.trim()} onClick={handleCreate}
+              style={{ padding: 13, borderRadius: 12, background: roomName.trim() ? 'linear-gradient(135deg,#10b981,#059669)' : 'rgba(255,255,255,0.05)', color: '#fff', fontWeight: 600, border: 'none', cursor: roomName.trim() ? 'pointer' : 'not-allowed' }}>
+              Create Private Room
+            </button>
+          </div>
+        )}
+
+        {tab === 'create' && created && (
+          <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center' }}>
+            <div style={{ fontSize: 40 }}>🎉</div>
+            <div style={{ color: '#fff', fontWeight: 700, fontSize: 18 }}>{created.name}</div>
+            <div style={{ background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 14, padding: '16px 24px' }}>
+              <div style={{ color: '#94a3b8', fontSize: 11, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Room Code</div>
+              <div style={{ color: '#fff', fontSize: 28, fontWeight: 900, letterSpacing: 8, fontFamily: 'monospace' }}>{created.roomId}</div>
+            </div>
+            <div style={{ color: '#64748b', fontSize: 12 }}>Share this code with your friends</div>
+            <button onClick={() => onJoin(created.roomId, roomPass, false)}
+              style={{ padding: '12px 24px', borderRadius: 12, background: 'linear-gradient(135deg,#6366f1,#9333ea)', color: '#fff', fontWeight: 600, border: 'none', cursor: 'pointer' }}>
+              Enter Room →
+            </button>
+          </div>
+        )}
+
+        {/* Browse tab */}
+        {tab === 'browse' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {publicRooms.length === 0 && <div style={{ color: '#475569', textAlign: 'center', padding: 20 }}>No public rooms yet</div>}
+            {publicRooms.map(r => (
+              <div key={r.id} onClick={() => onJoin(r.id, '', false)}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'rgba(255,255,255,0.04)', borderRadius: 14, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.06)', transition: 'background 0.15s' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.1)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}>
+                <div>
+                  <div style={{ color: '#fff', fontWeight: 600, fontSize: 14 }}>#{r.name}</div>
+                  <div style={{ color: '#475569', fontSize: 11 }}>{r.count} online</div>
+                </div>
+                <div style={{ color: '#6366f1', fontSize: 12, fontWeight: 600 }}>Join →</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
-// MAIN
+// VIBE BOARD PANEL
+// ─────────────────────────────────────────────────────────────────────────────
+function VibeBoard({ items, onDrop, onClose }) {
+  const [url, setUrl] = useState('');
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: 16 }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ background: '#1a1b2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '24px 24px 0 0', padding: 24, width: '100%', maxWidth: 600, maxHeight: '70vh', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ color: '#fff', fontWeight: 700, fontSize: 17 }}>🎨 Vibe Board</div>
+          <button onClick={onClose} style={{ color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', fontSize: 20 }}>✕</button>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input value={url} onChange={e => setUrl(e.target.value)} placeholder="Paste GIF or image URL…"
+            style={{ flex: 1, padding: '10px 14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#fff', fontSize: 14, outline: 'none' }} />
+          <button onClick={() => { if (url.trim()) { onDrop(url.trim()); setUrl(''); } }}
+            style={{ padding: '10px 16px', borderRadius: 12, background: 'linear-gradient(135deg,#6366f1,#9333ea)', color: '#fff', fontWeight: 600, border: 'none', cursor: 'pointer', fontSize: 13 }}>
+            Drop
+          </button>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 10, overflowY: 'auto' }}>
+          {items.map(item => (
+            <div key={item.id} style={{ borderRadius: 12, overflow: 'hidden', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', position: 'relative' }}>
+              <img src={item.url} alt="vibe" style={{ width: '100%', height: 100, objectFit: 'cover', display: 'block' }} onError={e => { e.currentTarget.style.display = 'none'; }} />
+              <div style={{ padding: '4px 8px', fontSize: 10, color: '#475569', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>by {item.sender}</div>
+            </div>
+          ))}
+          {items.length === 0 && <div style={{ color: '#334155', fontSize: 13, gridColumn: '1/-1', textAlign: 'center', padding: 20 }}>No vibes yet — drop something!</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MAIN CHAT
 // ─────────────────────────────────────────────────────────────────────────────
 export default function Chat() {
   const [sender,       setSender]       = useState('');
+  const [userLang,     setUserLang]     = useState('en');
   const [nameReady,    setNameReady]    = useState(false);
   const [message,      setMessage]      = useState('');
   const [messages,     setMessages]     = useState([]);
@@ -311,82 +519,106 @@ export default function Chat() {
   const [connected,    setConnected]    = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
   const [lightboxSrc,  setLightboxSrc]  = useState(null);
+  const [isSpectator,  setIsSpectator]  = useState(false);
+  const [currentRoom,  setCurrentRoom]  = useState('general');
+  const [roomName,     setRoomName]     = useState('General');
+  const [showRoomModal,setShowRoomModal]= useState(false);
+  const [showVibe,     setShowVibe]     = useState(false);
+  const [vibeItems,    setVibeItems]    = useState([]);
+  const [myStatus,     setMyStatus]     = useState('online');
+  const [showStatus,   setShowStatus]   = useState(false);
+  const [cinematicId,  setCinematicId]  = useState(null);
+  const [confetti,     setConfetti]     = useState(false);
+  const [notification, setNotification] = useState(null);
+  const [anonMode,     setAnonMode]     = useState(false);
+  const [unread,       setUnread]       = useState(0);
 
-  // Streak
-  const [streak,     setStreak]     = useState(0);
-  const [streakLeft, setStreakLeft]  = useState(0);
-  const streakTimerRef = useRef(null);
-  const streakTickRef  = useRef(null);
-  const streakSecsRef  = useRef(0);
-
-  const messagesEndRef = useRef(null);
-  const inputRef       = useRef(null);
-  const typingTimerRef = useRef(null);
-  const senderRef      = useRef('');
+  const messagesEndRef  = useRef(null);
+  const inputRef        = useRef(null);
+  const typingTimerRef  = useRef(null);
+  const senderRef       = useRef('');
+  const cinematicRef    = useRef({});  // msgId -> timestamps of reactions
 
   useEffect(() => { senderRef.current = sender; }, [sender]);
 
-  // ── Streak engine ────────────────────────────────────────────────────────────
-  const bumpStreak = useCallback(() => {
-    setStreak(s => s + 1);
-    streakSecsRef.current = STREAK_TIMEOUT;
-    setStreakLeft(STREAK_TIMEOUT);
-    clearInterval(streakTickRef.current);
-    clearTimeout(streakTimerRef.current);
-
-    streakTickRef.current = setInterval(() => {
-      streakSecsRef.current -= 1;
-      setStreakLeft(streakSecsRef.current);
-      if (streakSecsRef.current <= 0) clearInterval(streakTickRef.current);
-    }, 1000);
-
-    streakTimerRef.current = setTimeout(() => {
-      setStreak(0); setStreakLeft(0);
-      clearInterval(streakTickRef.current);
-    }, STREAK_TIMEOUT * 1000);
+  // ── Translate via MyMemory (free API, no key needed) ─────────────────────
+  const translateText = useCallback(async (text, targetLang) => {
+    if (targetLang === 'en') return null;
+    try {
+      const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|${targetLang}`);
+      const data = await res.json();
+      const t = data?.responseData?.translatedText;
+      return t && t !== text ? t : null;
+    } catch { return null; }
   }, []);
 
-  // ── Socket events ────────────────────────────────────────────────────────────
+  // ── Socket events ─────────────────────────────────────────────────────────
   useEffect(() => {
     socket.on('connect',    () => setConnected(true));
     socket.on('disconnect', () => setConnected(false));
     if (socket.connected) setConnected(true);
 
-    socket.on('chat history', (history) => {
-      setMessages((history || []).map(m => ({ ...m, id: m.id || makeId(), reactions: m.reactions || {} })));
+    socket.on('chat history', async (history) => {
+      const msgs = (history || []).map(m => ({ ...m, id: m.id || makeId(), reactions: m.reactions || {} }));
+      setMessages(msgs);
     });
 
-    socket.on('chat message', (data) => {
-      const msg = { ...data, id: data.id || makeId(), reactions: data.reactions || {}, seen: false };
-      setMessages(prev => [...prev, msg]);
-      bumpStreak();
-      if (data.sender !== senderRef.current && Notification.permission === 'granted') {
-        new Notification(data.sender, { body: data.message || 'Sent an image', silent: true });
+    socket.on('chat message', async (data) => {
+      const msg = { ...data, id: data.id || makeId(), reactions: data.reactions || {} };
+
+      // Smart notification — only ping if mentioned or DM
+      const myName = senderRef.current;
+      const mentionsMe = msg.message?.toLowerCase().includes(myName.toLowerCase());
+      if (data.sender !== myName) {
+        if (mentionsMe) {
+          setNotification(`📣 ${data.sender} mentioned you!`);
+          setTimeout(() => setNotification(null), 4000);
+          if (Notification.permission === 'granted') {
+            new Notification(`${data.sender} mentioned you`, { body: msg.message, silent: false });
+          }
+        }
+        setUnread(u => u + 1);
       }
+
+      // Auto-translate incoming if user has non-English lang
+      const lang = userLangRef.current;
+      if (lang && lang !== 'en' && msg.message) {
+        const translated = await translateText(msg.message, lang);
+        if (translated) msg.translate = translated;
+      }
+
+      setMessages(prev => [...prev, msg]);
     });
 
-    socket.on('reaction', ({ msgId, emoji, user }) => {
-      setMessages(prev => prev.map(m => {
-        if (m.id !== msgId) return m;
-        const r = { ...m.reactions };
-        if (!r[emoji]) r[emoji] = [];
-        const i = r[emoji].indexOf(user);
-        r[emoji] = i === -1 ? [...r[emoji], user] : r[emoji].filter(u => u !== user);
-        return { ...m, reactions: r };
-      }));
+    // Fixed reaction: server sends full reactions object
+    socket.on('reaction update', ({ msgId, reactions }) => {
+      setMessages(prev => prev.map(m => m.id === msgId ? { ...m, reactions } : m));
     });
 
-    socket.on('typing', ({ sender: s, text }) => {
+    socket.on('typing', ({ sender: s }) => {
       if (s !== senderRef.current)
         setTypingUsers(prev => prev.includes(s) ? prev : [...prev, s]);
     });
-
-    socket.on('stop typing', (data) => {
-      const name = typeof data === 'string' ? data : data?.sender;
-      setTypingUsers(prev => prev.filter(u => u !== name));
+    socket.on('stop typing', ({ sender: s }) => {
+      setTypingUsers(prev => prev.filter(u => u !== s));
     });
 
     socket.on('user list', setOnlineUsers);
+    socket.on('vibe board', setVibeItems);
+
+    socket.on('cinematic moment', ({ msgId }) => {
+      setCinematicId(msgId);
+      setConfetti(true);
+      setTimeout(() => setCinematicId(null), 4000);
+    });
+
+    socket.on('room joined', ({ room, name, spectator }) => {
+      setCurrentRoom(room);
+      setRoomName(name);
+      setIsSpectator(spectator);
+      setMessages([]);
+      setShowRoomModal(false);
+    });
 
     const onPaste = (e) => {
       for (const item of e.clipboardData.items) {
@@ -401,70 +633,102 @@ export default function Chat() {
     window.addEventListener('paste', onPaste);
 
     return () => {
-      ['connect','disconnect','chat history','chat message','reaction','typing','stop typing','user list']
+      ['connect','disconnect','chat history','chat message','reaction update',
+       'typing','stop typing','user list','vibe board','cinematic moment','room joined','error']
         .forEach(e => socket.off(e));
       window.removeEventListener('paste', onPaste);
-      clearInterval(streakTickRef.current);
-      clearTimeout(streakTimerRef.current);
     };
-  }, [bumpStreak]);
+  }, [translateText]);
+
+  const userLangRef = useRef(userLang);
+  useEffect(() => { userLangRef.current = userLang; }, [userLang]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    if (sender) socket.emit('read', { reader: sender });
+    setUnread(0);
   }, [messages]);
 
-  useEffect(() => {
-    if (Notification.permission === 'default') Notification.requestPermission();
-  }, []);
-
-  // ── Session restore ──────────────────────────────────────────────────────────
-  const joinChat = useCallback((name) => {
+  // ── Join chat ─────────────────────────────────────────────────────────────
+  const joinChat = useCallback((name, lang) => {
     setSender(name);
+    setUserLang(lang);
+    userLangRef.current = lang;
     setNameReady(true);
     sessionStorage.setItem('gc_sender', name);
-    sessionStorage.setItem('gc_time', Date.now());
-    socket.emit('join', name);
+    sessionStorage.setItem('gc_lang', lang);
+    socket.emit('join', { username: name, room: 'general' });
+    if (Notification.permission === 'default') Notification.requestPermission();
   }, []);
 
   useEffect(() => {
     const s = sessionStorage.getItem('gc_sender');
-    const t = sessionStorage.getItem('gc_time');
-    if (s && t && Date.now() - Number(t) < 30 * 60 * 1000) joinChat(s);
+    const l = sessionStorage.getItem('gc_lang') || 'en';
+    if (s) joinChat(s, l);
   }, [joinChat]);
 
-  // ── Send ─────────────────────────────────────────────────────────────────────
+  // ── Join room ─────────────────────────────────────────────────────────────
+  const joinRoom = useCallback((roomId, password, spectator) => {
+    socket.emit('join', { username: sender, room: roomId, password, spectator });
+  }, [sender]);
+
+  // ── Send message ──────────────────────────────────────────────────────────
   const sendMessage = useCallback(() => {
+    if (isSpectator) return;
     if (imagePreview) {
-      socket.emit('chat message', { id: makeId(), sender, image: imagePreview, time: formatTime(), reactions: {} });
+      socket.emit('chat message', { id: makeId(), sender, image: imagePreview, time: formatTime(), reactions: {}, isAnon: anonMode });
       setImagePreview(null); return;
     }
-    if (!message.trim()) return;
-    socket.emit('chat message', { id: makeId(), sender, message: message.trim(), time: formatTime(), reactions: {} });
+    const text = message.trim();
+    if (!text) return;
+
+    // Consequence engine
+    let effect = null;
+    for (const rule of CONSEQUENCE_RULES) {
+      if (rule.trigger.test(text)) { effect = rule.effect; break; }
+    }
+
+    const msg = {
+      id: makeId(), sender: anonMode ? 'Anonymous' : sender,
+      message: text, time: formatTime(),
+      reactions: {}, effect, isAnon: anonMode,
+    };
+    socket.emit('chat message', msg);
     setMessage('');
     clearTimeout(typingTimerRef.current);
-    socket.emit('stop typing', sender);
-  }, [message, sender, imagePreview]);
+    socket.emit('stop typing', { sender });
+  }, [message, sender, imagePreview, anonMode, isSpectator]);
 
-  // ── React ────────────────────────────────────────────────────────────────────
+  // ── React — optimistic update + server sync ───────────────────────────────
   const handleReact = useCallback((msgId, emoji) => {
-    socket.emit('reaction', { msgId, emoji, user: sender });
+    if (isSpectator) return;
+    // Optimistic local update
     setMessages(prev => prev.map(m => {
       if (m.id !== msgId) return m;
       const r = { ...m.reactions };
       if (!r[emoji]) r[emoji] = [];
-      const i = r[emoji].indexOf(sender);
-      r[emoji] = i === -1 ? [...r[emoji], sender] : r[emoji].filter(u => u !== sender);
+      const idx = r[emoji].indexOf(sender);
+      r[emoji] = idx === -1 ? [...r[emoji], sender] : r[emoji].filter(u => u !== sender);
       return { ...m, reactions: r };
     }));
-  }, [sender]);
+    socket.emit('reaction', { msgId, emoji, user: sender });
 
-  // ── Typing ───────────────────────────────────────────────────────────────────
+    // Check for cinematic moment (5 reactions in 10s on same msg)
+    if (!cinematicRef.current[msgId]) cinematicRef.current[msgId] = [];
+    cinematicRef.current[msgId].push(Date.now());
+    const recent = cinematicRef.current[msgId].filter(t => Date.now() - t < 10000);
+    cinematicRef.current[msgId] = recent;
+    if (recent.length >= 5) {
+      socket.emit('cinematic check', { msgId });
+      cinematicRef.current[msgId] = [];
+    }
+  }, [sender, isSpectator]);
+
+  // ── Typing ────────────────────────────────────────────────────────────────
   const handleTyping = (e) => {
     setMessage(e.target.value);
-    socket.emit('typing', { sender, text: e.target.value });
+    socket.emit('typing', { sender });
     clearTimeout(typingTimerRef.current);
-    typingTimerRef.current = setTimeout(() => socket.emit('stop typing', sender), 1500);
+    typingTimerRef.current = setTimeout(() => socket.emit('stop typing', { sender }), 1500);
   };
 
   const handleKeyDown = (e) => {
@@ -480,196 +744,261 @@ export default function Chat() {
     e.target.value = '';
   };
 
+  // ── Status update ─────────────────────────────────────────────────────────
+  const updateStatus = (s) => {
+    setMyStatus(s);
+    setShowStatus(false);
+    socket.emit('status', { status: s });
+  };
+
+  // ── Vibe drop ─────────────────────────────────────────────────────────────
+  const handleVibeDrop = (url) => {
+    socket.emit('vibe drop', { url, sender });
+  };
+
   const typingLabel = typingUsers.length === 1
     ? `${typingUsers[0]} is typing…`
-    : typingUsers.length > 1
-    ? `${typingUsers.slice(0, 2).join(' & ')} are typing…`
-    : '';
+    : typingUsers.length > 1 ? `${typingUsers.slice(0,2).join(' & ')} are typing…` : '';
 
-  // ─────────────────────────────────────────────────────────────────────────────
+  const statusObj = STATUSES.find(s => s.value === myStatus) || STATUSES[0];
+
+  // ─────────────────────────────────────────────────────────────────────────
   // RENDER
-  // ─────────────────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
+  if (!nameReady) return <NameModal onSubmit={joinChat} />;
+
   return (
     <>
-      {!nameReady && <NameModal onSubmit={joinChat} />}
+      <style>{`
+        * { box-sizing: border-box; }
+        html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #0d0e1a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; -webkit-text-size-adjust: 100%; }
+        ::-webkit-scrollbar { width: 3px; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 99px; }
+        @keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
+        @keyframes pulse  { 0%,100%{opacity:1} 50%{opacity:.4} }
+        @keyframes slideIn { from{opacity:0;transform:translateY(5px)} to{opacity:1;transform:none} }
+        @keyframes cinematicPop { 0%{transform:scale(1)} 50%{transform:scale(1.08)} 100%{transform:scale(1)} }
+        .rainbow-text { background: linear-gradient(90deg,#f97316,#ec4899,#8b5cf6,#06b6d4); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+        .msg-in { animation: slideIn 0.2s ease both; }
+        .bounce-dot { animation: bounce 1s infinite; }
+      `}</style>
 
-      {/* Lightbox */}
-      {lightboxSrc && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm cursor-zoom-out"
-          onClick={() => setLightboxSrc(null)}
-        >
-          <img src={lightboxSrc} alt="full" className="max-w-[90vw] max-h-[90vh] rounded-2xl shadow-2xl" />
+      {/* Confetti */}
+      {confetti && <Confetti onDone={() => setConfetti(false)} />}
+
+      {/* Smart notification toast */}
+      {notification && (
+        <div style={{ position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 200, background: '#1a1b2e', border: '1px solid rgba(99,102,241,0.4)', borderRadius: 14, padding: '10px 18px', color: '#fff', fontSize: 13, fontWeight: 600, boxShadow: '0 8px 32px rgba(0,0,0,0.5)', animation: 'slideIn 0.2s ease', whiteSpace: 'nowrap' }}>
+          {notification}
         </div>
       )}
 
-      {/* Shell */}
-      <div className="fixed inset-0 flex items-center justify-center bg-[#0d0e1a]" style={{ height: '100dvh' }}>
-        <div className="relative w-full h-full md:max-w-5xl md:h-[90vh] md:rounded-2xl flex overflow-hidden shadow-2xl border border-white/5">
+      {/* Lightbox */}
+      {lightboxSrc && (
+        <div onClick={() => setLightboxSrc(null)} style={{ position: 'fixed', inset: 0, zIndex: 90, background: 'rgba(0,0,0,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out' }}>
+          <img src={lightboxSrc} alt="full" style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 16 }} />
+        </div>
+      )}
 
-          {/* Sidebar mobile overlay */}
-          {showSidebar && (
-            <div className="fixed inset-0 z-30 bg-black/60 md:hidden" onClick={() => setShowSidebar(false)} />
-          )}
+      {/* Room modal */}
+      {showRoomModal && (
+        <RoomModal username={sender} onClose={() => setShowRoomModal(false)} onJoin={joinRoom}
+          onCreate={(name, pass) => socket.emit('create room', { name, password: pass, username: sender })} />
+      )}
 
-          {/* ── SIDEBAR ───────────────────────────────────────────────────────── */}
-          <aside className={`
-            absolute md:static inset-y-0 left-0 z-40 w-72
-            flex flex-col bg-[#161728] border-r border-white/5
-            transform transition-transform duration-300 ease-in-out
-            ${showSidebar ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-          `}>
-            {/* Logo */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-base">
-                  👾
-                </div>
-                <span className="text-white font-bold text-base tracking-tight">GroupChat</span>
-              </div>
-              <button onClick={() => setShowSidebar(false)}
-                className="md:hidden text-slate-500 hover:text-white p-1 rounded-lg hover:bg-white/5 transition">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
-                </svg>
+      {/* Vibe board */}
+      {showVibe && <VibeBoard items={vibeItems} onDrop={handleVibeDrop} onClose={() => setShowVibe(false)} />}
+
+      {/* Status picker */}
+      {showStatus && (
+        <div onClick={() => setShowStatus(false)} style={{ position: 'fixed', inset: 0, zIndex: 60 }}>
+          <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', left: 12, bottom: 80, background: '#1a1b2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: 8, display: 'flex', flexDirection: 'column', gap: 2, boxShadow: '0 8px 32px rgba(0,0,0,0.5)', minWidth: 160 }}>
+            {STATUSES.map(s => (
+              <button key={s.value} onClick={() => updateStatus(s.value)}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 10, background: myStatus === s.value ? 'rgba(99,102,241,0.2)' : 'transparent', border: 'none', cursor: 'pointer', color: s.color, fontSize: 13, fontWeight: 600, textAlign: 'left' }}>
+                <span>{s.icon}</span><span>{s.label}</span>
               </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* App shell */}
+      <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0d0e1a', height: '100dvh' }}>
+        <div style={{
+          position: 'relative', width: '100%', height: '100%',
+          display: 'flex', overflow: 'hidden',
+          background: '#13141f', border: '1px solid rgba(255,255,255,0.05)',
+          ...(window.matchMedia('(min-width:768px)').matches ? { maxWidth: 960, height: '92vh', borderRadius: 22, boxShadow: '0 32px 80px rgba(0,0,0,0.7)' } : {}),
+        }}>
+
+          {/* Mobile sidebar overlay */}
+          {showSidebar && <div onClick={() => setShowSidebar(false)} style={{ position: 'fixed', inset: 0, zIndex: 30, background: 'rgba(0,0,0,0.6)' }} />}
+
+          {/* ── SIDEBAR ─────────────────────────────────────────────────── */}
+          <aside style={{
+            width: 260, flexShrink: 0, display: 'flex', flexDirection: 'column',
+            background: '#161728', borderRight: '1px solid rgba(255,255,255,0.05)',
+            position: window.matchMedia('(min-width:768px)').matches ? 'relative' : 'absolute',
+            top: 0, bottom: 0, left: 0, zIndex: 40,
+            transform: (window.matchMedia('(min-width:768px)').matches || showSidebar) ? 'translateX(0)' : 'translateX(-100%)',
+            transition: 'transform 0.3s ease',
+          }}>
+            {/* Logo */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 18px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg,#6366f1,#9333ea)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17 }}>👾</div>
+                <div>
+                  <div style={{ color: '#fff', fontWeight: 700, fontSize: 15 }}>GroupChat</div>
+                  <div style={{ color: '#475569', fontSize: 10 }}>#{roomName}</div>
+                </div>
+              </div>
+              <button onClick={() => setShowSidebar(false)} style={{ display: window.matchMedia('(min-width:768px)').matches ? 'none' : 'flex', color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', alignItems: 'center', justifyContent: 'center', width: 28, height: 28 }}>✕</button>
             </div>
 
-            {/* Streak card */}
-            <div className="mx-3 mt-3 p-3.5 rounded-2xl bg-[#1a1b2e] border border-white/5">
-              {streak > 0 ? (
-                <StreakBadge streak={streak} secondsLeft={streakLeft} />
-              ) : (
-                <div className="flex items-center gap-2 text-slate-600">
-                  <span className="text-lg opacity-40">🔥</span>
-                  <div>
-                    <p className="text-xs font-semibold text-slate-500">Chat Streak</p>
-                    <p className="text-[11px] text-slate-700">Send a message to start!</p>
-                  </div>
-                </div>
-              )}
-            </div>
+            {/* Room button */}
+            <button onClick={() => setShowRoomModal(true)} style={{ margin: '12px 12px 0', padding: '10px 14px', background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 14, color: '#a5b4fc', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.15s' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.2)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(99,102,241,0.1)'}>
+              🏠 <span>Rooms</span>
+              <span style={{ marginLeft: 'auto', background: 'rgba(99,102,241,0.3)', borderRadius: 6, padding: '1px 6px', fontSize: 10 }}>{currentRoom === 'general' ? 'General' : 'Private'}</span>
+            </button>
+
+            {/* Vibe board button */}
+            <button onClick={() => setShowVibe(true)} style={{ margin: '6px 12px 0', padding: '10px 14px', background: 'rgba(236,72,153,0.08)', border: '1px solid rgba(236,72,153,0.2)', borderRadius: 14, color: '#f472b6', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(236,72,153,0.15)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(236,72,153,0.08)'}>
+              🎨 <span>Vibe Board</span>
+              {vibeItems.length > 0 && <span style={{ marginLeft: 'auto', background: 'rgba(236,72,153,0.3)', borderRadius: 6, padding: '1px 6px', fontSize: 10 }}>{vibeItems.length}</span>}
+            </button>
 
             {/* You */}
-            {nameReady && (
-              <div className="px-4 pt-4 pb-3 border-b border-white/5">
-                <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-widest mb-2.5">You</p>
-                <div className="flex items-center gap-2.5">
-                  <PixelAvatar name={sender} size={34} ring />
-                  <div>
-                    <p className="text-white font-semibold text-sm">{sender}</p>
-                    <p className="text-xs text-emerald-400">Active now</p>
+            <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', marginTop: 10 }}>
+              <div style={{ fontSize: 10, fontWeight: 600, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>You</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ position: 'relative' }}>
+                  <PixelAvatar name={sender} size={34} ring ghost={isSpectator} />
+                  <button onClick={() => setShowStatus(s => !s)} title="Set status"
+                    style={{ position: 'absolute', bottom: -2, right: -2, width: 14, height: 14, borderRadius: '50%', background: statusObj.color, border: '2px solid #161728', cursor: 'pointer', padding: 0 }} />
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ color: '#fff', fontWeight: 600, fontSize: 13, display: 'flex', alignItems: 'center', gap: 5 }}>
+                    {sender}
+                    {isSpectator && <span style={{ fontSize: 10, background: 'rgba(148,163,184,0.15)', color: '#94a3b8', padding: '1px 6px', borderRadius: 6 }}>👁 Spectator</span>}
+                    {anonMode && <span style={{ fontSize: 10, background: 'rgba(107,114,128,0.2)', color: '#9ca3af', padding: '1px 6px', borderRadius: 6 }}>👻 Anon</span>}
                   </div>
+                  <div style={{ fontSize: 11, color: statusObj.color }}>{statusObj.icon} {statusObj.label}</div>
                 </div>
               </div>
-            )}
+            </div>
 
             {/* Online users */}
-            <div className="flex-1 overflow-y-auto px-4 py-3">
-              <div className="flex items-center justify-between mb-2.5">
-                <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-widest">
-                  Online — {onlineUsers.length}
-                </p>
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <div style={{ fontSize: 10, fontWeight: 600, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Online — {onlineUsers.filter(u => !u.spectator).length}</div>
+                <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#34d399', animation: 'pulse 2s infinite' }} />
               </div>
-              <div className="flex flex-col gap-1">
-                {onlineUsers.map((user, i) => (
-                  <div key={i} className="flex items-center gap-2.5 px-2 py-2 rounded-xl hover:bg-white/4 transition">
-                    <div className="relative">
-                      <PixelAvatar name={user} size={30} />
-                      <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-[#161728]" />
+              {onlineUsers.map((user, i) => {
+                const st = STATUSES.find(s => s.value === user.status) || STATUSES[0];
+                return (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 8px', borderRadius: 12, marginBottom: 2 }}>
+                    <div style={{ position: 'relative' }}>
+                      <PixelAvatar name={user.username} size={30} ghost={user.spectator} />
+                      <div style={{ position: 'absolute', bottom: -1, right: -1, width: 9, height: 9, borderRadius: '50%', background: st.color, border: '2px solid #161728' }} />
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-sm text-slate-200 font-medium truncate">{user}</p>
-                      <p className="text-[10px] text-slate-600">Online</p>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ color: '#cbd5e1', fontSize: 13, fontWeight: 500, truncate: true }}>{user.username}{user.spectator ? ' 👁' : ''}</div>
+                      <div style={{ fontSize: 10, color: st.color }}>{st.icon} {st.label}</div>
                     </div>
                   </div>
-                ))}
-                {onlineUsers.length === 0 && (
-                  <p className="text-slate-700 text-xs text-center py-4">No one else here yet</p>
-                )}
-              </div>
+                );
+              })}
+              {onlineUsers.length === 0 && <div style={{ color: '#334155', fontSize: 12, textAlign: 'center', padding: 16 }}>No one else here yet</div>}
             </div>
           </aside>
 
-          {/* ── MAIN ──────────────────────────────────────────────────────────── */}
-          <div className="flex-1 flex flex-col min-w-0 bg-[#13141f]">
+          {/* ── MAIN ──────────────────────────────────────────────────────── */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
 
             {/* Header */}
-            <header className="flex items-center gap-3 px-4 py-3.5 border-b border-white/5 bg-[#161728]">
-              <button
-                onClick={() => setShowSidebar(true)}
-                className="md:hidden text-slate-500 hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16"/>
-                </svg>
+            <header style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', background: '#161728', flexShrink: 0 }}>
+              <button onClick={() => setShowSidebar(true)} style={{ display: window.matchMedia('(min-width:768px)').matches ? 'none' : 'flex', color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 10, flexShrink: 0 }}>
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
               </button>
 
-              <div className="w-9 h-9 rounded-xl bg-[#1e1f2e] border border-white/8 flex items-center justify-center text-xl flex-shrink-0">
-                👾
-              </div>
+              <div style={{ width: 36, height: 36, borderRadius: 12, background: '#1e1f2e', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 19, flexShrink: 0 }}>👾</div>
 
-              <div className="min-w-0 flex-1">
-                <h1 className="text-white font-semibold text-sm leading-tight">Group Chat</h1>
-                <p className="text-[11px] truncate" style={{ color: typingLabel ? '#f59e0b' : '#475569', fontStyle: typingLabel ? 'italic' : 'normal' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ color: '#fff', fontWeight: 600, fontSize: 14 }}>#{roomName}</div>
+                <div style={{ fontSize: 11, color: typingLabel ? '#f59e0b' : '#475569', fontStyle: typingLabel ? 'italic' : 'normal', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {typingLabel || `${onlineUsers.length} online`}
-                </p>
+                </div>
               </div>
 
-              {/* Streak compact badge in header */}
-              {streak > 0 && <StreakBadge streak={streak} secondsLeft={streakLeft} compact />}
+              {/* Anon toggle */}
+              {!isSpectator && (
+                <button onClick={() => setAnonMode(a => !a)} title="Toggle anonymous mode"
+                  style={{ padding: '5px 10px', borderRadius: 10, background: anonMode ? 'rgba(107,114,128,0.25)' : 'rgba(255,255,255,0.05)', border: `1px solid ${anonMode ? 'rgba(107,114,128,0.4)' : 'rgba(255,255,255,0.08)'}`, color: anonMode ? '#d1d5db' : '#475569', fontSize: 12, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
+                  👻
+                </button>
+              )}
 
-              {/* Connection pill */}
-              <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold flex-shrink-0 ${
-                connected ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
-              }`}>
-                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${connected ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}`} />
+              {/* Lang selector */}
+              <select value={userLang} onChange={e => setUserLang(e.target.value)}
+                style={{ padding: '5px 8px', borderRadius: 10, background: '#1e1f2e', border: '1px solid rgba(255,255,255,0.08)', color: '#94a3b8', fontSize: 11, cursor: 'pointer', flexShrink: 0, maxWidth: 80 }}>
+                {LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
+              </select>
+
+              {/* Connection */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 99, background: connected ? 'rgba(52,211,153,0.1)' : 'rgba(239,68,68,0.1)', color: connected ? '#34d399' : '#f87171', fontSize: 11, fontWeight: 600, flexShrink: 0 }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: connected ? '#34d399' : '#f87171', animation: connected ? 'pulse 2s infinite' : 'none' }} />
                 {connected ? 'Live' : 'Off'}
               </div>
             </header>
 
+            {/* Spectator banner */}
+            {isSpectator && (
+              <div style={{ background: 'rgba(148,163,184,0.08)', borderBottom: '1px solid rgba(148,163,184,0.1)', padding: '8px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 12 }}>
+                👁 You are in Spectator Mode — invisible to others, read-only
+              </div>
+            )}
+
             {/* Messages */}
-            <div
-              className="flex-1 overflow-y-auto px-4 py-4"
-              style={{ WebkitOverflowScrolling: 'touch' }}
-            >
+            <div style={{ flex: 1, overflowY: 'auto', padding: '16px', WebkitOverflowScrolling: 'touch' }}>
               {messages.length === 0 && (
-                <div className="h-full flex flex-col items-center justify-center gap-3 text-center select-none">
-                  <div className="text-5xl opacity-30">👾</div>
-                  <p className="text-slate-600 text-sm">No messages yet — say hello!</p>
-                  <p className="text-slate-700 text-xs">Long-press or hover a message to react 😊</p>
-                  <p className="text-slate-700 text-xs">Keep chatting to build a streak 🔥</p>
+                <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, textAlign: 'center', userSelect: 'none' }}>
+                  <div style={{ fontSize: 48, opacity: 0.25 }}>👾</div>
+                  <div style={{ color: '#475569', fontSize: 14 }}>No messages yet — say hello!</div>
+                  <div style={{ color: '#334155', fontSize: 12 }}>Hover a message to react · 5 reactions = 🎉 cinematic moment</div>
+                  <div style={{ color: '#334155', fontSize: 12 }}>👻 Anon mode · 🌐 Auto-translate · 🏠 Private rooms</div>
                 </div>
               )}
 
-              <div className="flex flex-col">
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
                 {messages.map((msg, idx) => {
-                  const isMe      = msg.sender === sender;
-                  const prev      = messages[idx - 1];
-                  const showAv    = !isMe && msg.sender !== prev?.sender;
-                  const showName  = !isMe && showAv;
-                  const gap       = idx > 0 && msg.sender === prev?.sender ? 'mt-0.5' : 'mt-3';
+                  const isMe    = msg.sender === sender || (msg.isAnon && anonMode && msg.senderReal === sender);
+                  const prev    = messages[idx - 1];
+                  const showAv  = !isMe && msg.sender !== prev?.sender;
+                  const gap     = idx > 0 && msg.sender === prev?.sender ? 2 : 12;
                   return (
-                    <div key={msg.id || idx} className={gap}>
+                    <div key={msg.id || idx} className="msg-in" style={{ marginTop: gap }}>
                       <MessageBubble
                         msg={msg} isMe={isMe}
-                        showAvatar={showAv} showName={showName}
+                        showAvatar={showAv} showName={showAv && !isMe}
                         onReact={handleReact} onImageClick={setLightboxSrc}
+                        myUsername={sender} isSpectator={isSpectator}
+                        cinematicMsgId={cinematicId}
                       />
                     </div>
                   );
                 })}
 
-                {/* Typing bubble */}
+                {/* Typing */}
                 {typingLabel && (
-                  <div className="flex items-end gap-2 mt-3">
-                    <div className="w-8 flex-shrink-0" />
-                    <div className="bg-[#1e1f2e] border border-white/5 rounded-2xl rounded-bl-sm px-4 py-3 flex gap-1">
-                      {[0,1,2].map(i => (
-                        <span key={i} className="w-1.5 h-1.5 rounded-full bg-slate-500 inline-block animate-bounce"
-                          style={{ animationDelay: `${i*150}ms` }} />
-                      ))}
+                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, marginTop: 12 }}>
+                    <div style={{ width: 30, flexShrink: 0 }} />
+                    <div style={{ background: '#1e1f2e', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 18, borderBottomLeftRadius: 4, padding: '10px 14px', display: 'flex', gap: 4 }}>
+                      {[0,1,2].map(i => <div key={i} className="bounce-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: '#475569', animationDelay: `${i*150}ms` }} />)}
                     </div>
                   </div>
                 )}
@@ -677,62 +1006,45 @@ export default function Chat() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Image preview bar */}
+            {/* Image preview */}
             {imagePreview && (
-              <div className="mx-4 mb-2 p-3 rounded-xl bg-[#1e1f2e] border border-white/10 flex items-center gap-3">
-                <img src={imagePreview} alt="preview" className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-white text-sm font-medium">Image ready</p>
-                  <p className="text-slate-600 text-xs mt-0.5">Enter to send · Esc to cancel</p>
+              <div style={{ margin: '0 16px 8px', padding: '10px 12px', background: '#1e1f2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 14, display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                <img src={imagePreview} alt="preview" style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ color: '#fff', fontSize: 13, fontWeight: 500 }}>Image ready</div>
+                  <div style={{ color: '#475569', fontSize: 11, marginTop: 2 }}>Enter to send · Esc to cancel</div>
                 </div>
-                <button onClick={() => setImagePreview(null)}
-                  className="text-slate-500 hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition flex-shrink-0">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
-                  </svg>
-                </button>
+                <button onClick={() => setImagePreview(null)} style={{ color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 8, flexShrink: 0 }}>✕</button>
               </div>
             )}
 
             {/* Input bar */}
-            <div className="px-4 pt-2 bg-[#161728] border-t border-white/5"
-              style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}>
-              <div className="flex items-center gap-2 bg-[#1e1f2e] border border-white/10 rounded-2xl px-3 py-2 focus-within:border-indigo-500/40 transition">
-                {/* Attach */}
-                <label className="cursor-pointer text-slate-600 hover:text-indigo-400 transition p-1.5 rounded-lg hover:bg-white/5 flex-shrink-0">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
-                  </svg>
-                  <input type="file" accept="image/*" className="hidden" onChange={handleFileInput} />
-                </label>
+            {!isSpectator && (
+              <div style={{ padding: '8px 16px', paddingBottom: 'calc(10px + env(safe-area-inset-bottom))', background: '#161728', borderTop: '1px solid rgba(255,255,255,0.05)', flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#1e1f2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: '6px 8px 6px 14px', transition: 'border-color 0.2s' }}
+                  onFocus={() => {}} >
+                  {/* Attach */}
+                  <label style={{ color: '#475569', cursor: 'pointer', display: 'flex', padding: '6px', borderRadius: 8, flexShrink: 0 }}>
+                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                    <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileInput} />
+                  </label>
 
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={message}
-                  onChange={handleTyping}
-                  onKeyDown={handleKeyDown}
-                  placeholder={imagePreview ? 'Image attached…' : 'Message the group…'}
-                  disabled={!!imagePreview}
-                  className="flex-1 bg-transparent text-white placeholder-slate-600 focus:outline-none py-1 min-w-0"
-                  style={{ fontSize: '16px' }}
-                />
+                  <input ref={inputRef} type="text" value={message}
+                    onChange={handleTyping} onKeyDown={handleKeyDown}
+                    placeholder={imagePreview ? 'Image attached…' : anonMode ? '👻 Sending anonymously…' : 'Message the group…'}
+                    disabled={!!imagePreview}
+                    style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: '#fff', fontSize: 16, padding: '4px 0', minWidth: 0 }} />
 
-                {/* Send */}
-                <button
-                  onClick={sendMessage}
-                  disabled={!message.trim() && !imagePreview}
-                  className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white hover:opacity-90 disabled:opacity-25 disabled:cursor-not-allowed transition flex-shrink-0"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
-                  </svg>
-                </button>
+                  <button onClick={sendMessage} disabled={!message.trim() && !imagePreview}
+                    style={{ width: 36, height: 36, borderRadius: 12, border: 'none', cursor: (!message.trim() && !imagePreview) ? 'not-allowed' : 'pointer', background: (!message.trim() && !imagePreview) ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg,#6366f1,#9333ea)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s', opacity: (!message.trim() && !imagePreview) ? 0.3 : 1 }}>
+                    <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+                  </button>
+                </div>
+                <div style={{ textAlign: 'center', fontSize: 10, color: '#1e293b', marginTop: 5, userSelect: 'none' }}>
+                  Hover to react 😊 · 5 reactions = 🎉 · 👻 anon · 🌐 auto-translate
+                </div>
               </div>
-              <p className="text-center text-[10px] text-slate-700 mt-1.5 select-none">
-                Hover or long-press a message to react 😊 · Keep chatting to build a streak 🔥
-              </p>
-            </div>
+            )}
           </div>
         </div>
       </div>
