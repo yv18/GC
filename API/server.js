@@ -1,81 +1,71 @@
-const express = require('express');
-const http = require('http');
-const socketIo = require('socket.io');
-const cors = require('cors');
-const path = require('path');
+const express   = require('express');
+const http      = require('http');
+const socketIo  = require('socket.io');
+const cors      = require('cors');
 
-const app = express();
+const app    = express();
 const server = http.createServer(app);
-const io = socketIo(server, {
-  cors: {
-    origin: "https://gc-o1wg.onrender.com",
-    methods: ["GET", "POST"]
-  }
+const io     = socketIo(server, {
+  cors: { origin: '*', methods: ['GET','POST'] }
 });
 
-// Middleware
-app.use(cors({
-  origin: 'https://gc-o1wg.onrender.com',
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  credentials: true
-}));
+app.use(cors());
 app.use(express.json({ limit: '10mb' }));
+app.get('/', (_, res) => res.send('GroupChat backend running ✅'));
 
-app.get("/", (req, res) => {
-  res.send("Backend is working");
-});
-
-// In-memory chat message store
 let messages = [];
-
-// ✅ Track connected usernames
 const connectedUsers = new Set();
 
 io.on('connection', (socket) => {
-  console.log('A user connected');
+  console.log('User connected');
 
-  // Send chat history
+  // Send history
   socket.emit('chat history', messages);
 
-  // ✅ Handle join event to store username
+  // Join with username
   socket.on('join', (username) => {
-    socket.username = username; // store on socket
+    socket.username = username;
     connectedUsers.add(username);
     io.emit('user list', Array.from(connectedUsers));
-    console.log(`✅ ${username} joined. Users online: ${connectedUsers.size}`);
+    console.log(`✅ ${username} joined (${connectedUsers.size} online)`);
   });
 
-  // When a message is sent
+  // New message — store with id and reactions
   socket.on('chat message', (data) => {
-    messages.push(data);
-    io.emit('chat message', data);
+    const msg = { ...data, reactions: data.reactions || {} };
+    messages.push(msg);
+    // Keep last 200 messages only
+    if (messages.length > 200) messages = messages.slice(-200);
+    io.emit('chat message', msg);
   });
 
-  // Typing indicators
-  socket.on('typing', (data) => {
-    socket.broadcast.emit('typing', data);
+  // Reaction toggle
+  socket.on('reaction', ({ msgId, emoji, user }) => {
+    const msg = messages.find(m => m.id === msgId);
+    if (msg) {
+      if (!msg.reactions[emoji]) msg.reactions[emoji] = [];
+      const idx = msg.reactions[emoji].indexOf(user);
+      if (idx === -1) msg.reactions[emoji].push(user);
+      else msg.reactions[emoji].splice(idx, 1);
+    }
+    // Broadcast to everyone including sender
+    io.emit('reaction', { msgId, emoji, user });
   });
 
-  socket.on('stop typing', (sender) => {
-    socket.broadcast.emit('stop typing', sender);
-  });
+  // Typing
+  socket.on('typing',      (data)   => socket.broadcast.emit('typing', data));
+  socket.on('stop typing', (sender) => socket.broadcast.emit('stop typing', sender));
+  socket.on('read',        (data)   => socket.broadcast.emit('read', data));
 
-  // ✅ Remove user when they disconnect
+  // Disconnect
   socket.on('disconnect', () => {
     if (socket.username) {
       connectedUsers.delete(socket.username);
       io.emit('user list', Array.from(connectedUsers));
-      console.log(`❌ ${socket.username} disconnected. Users online: ${connectedUsers.size}`);
-    } else {
-      console.log('User disconnected');
+      console.log(`❌ ${socket.username} left (${connectedUsers.size} online)`);
     }
   });
 });
 
-// ✅ Corrected: Use the HTTP server with socket.io
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-  console.log(`Socket.io server running on http://localhost:${PORT}`);
-});
-
-
+server.listen(PORT, () => console.log(`Server on http://localhost:${PORT}`));
