@@ -1,8 +1,114 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import socket from './socket.js';
 
+// MUI Components
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
+import Avatar from '@mui/material/Avatar';
+import IconButton from '@mui/material/IconButton';
+import TextField from '@mui/material/TextField';
+import Tooltip from '@mui/material/Tooltip';
+import Chip from '@mui/material/Chip';
+import Badge from '@mui/material/Badge';
+import Drawer from '@mui/material/Drawer';
+import Divider from '@mui/material/Divider';
+import CircularProgress from '@mui/material/CircularProgress';
+import Dialog from '@mui/material/Dialog';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
+import Select from '@mui/material/Select';
+import MenuItem from '@mui/material/MenuItem';
+import FormControl from '@mui/material/FormControl';
+import InputLabel from '@mui/material/InputLabel';
+import Tab from '@mui/material/Tab';
+import Tabs from '@mui/material/Tabs';
+import List from '@mui/material/List';
+import ListItem from '@mui/material/ListItem';
+import ListItemAvatar from '@mui/material/ListItemAvatar';
+import ListItemText from '@mui/material/ListItemText';
+import Snackbar from '@mui/material/Snackbar';
+import Alert from '@mui/material/Alert';
+import InputAdornment from '@mui/material/InputAdornment';
+import Fade from '@mui/material/Fade';
+import Zoom from '@mui/material/Zoom';
+import Paper from '@mui/material/Paper';
+import Switch from '@mui/material/Switch';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import { createTheme, ThemeProvider, styled } from '@mui/material/styles';
+import useMediaQuery from '@mui/material/useMediaQuery';
+
+// MUI Icons
+import SendIcon from '@mui/icons-material/Send';
+import AttachFileIcon from '@mui/icons-material/AttachFile';
+import EmojiEmotionsIcon from '@mui/icons-material/EmojiEmotions';
+import MenuIcon from '@mui/icons-material/Menu';
+import CloseIcon from '@mui/icons-material/Close';
+import LockIcon from '@mui/icons-material/Lock';
+import PublicIcon from '@mui/icons-material/Public';
+import AddIcon from '@mui/icons-material/Add';
+import MeetingRoomIcon from '@mui/icons-material/MeetingRoom';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import WifiIcon from '@mui/icons-material/Wifi';
+import WifiOffIcon from '@mui/icons-material/WifiOff';
+import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
+import TranslateIcon from '@mui/icons-material/Translate';
+import PaletteIcon from '@mui/icons-material/Palette';
+import ImageIcon from '@mui/icons-material/Image';
+import CodeIcon from '@mui/icons-material/Code';
+import SportsEsportsIcon from '@mui/icons-material/SportsEsports';
+import MusicNoteIcon from '@mui/icons-material/MusicNote';
+import BedIcon from '@mui/icons-material/Bed';
+import DoNotDisturbIcon from '@mui/icons-material/DoNotDisturb';
+import CheckIcon from '@mui/icons-material/Check';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import CelebrationIcon from '@mui/icons-material/Celebration';
+import GroupIcon from '@mui/icons-material/Group';
+import SearchIcon from '@mui/icons-material/Search';
+import SettingsIcon from '@mui/icons-material/Settings';
+import PersonOffIcon from '@mui/icons-material/PersonOff';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
+import TagIcon from '@mui/icons-material/Tag';
+import DoneAllIcon from '@mui/icons-material/DoneAll';
+import ReplyIcon from '@mui/icons-material/Reply';
+import ZoomInIcon from '@mui/icons-material/ZoomIn';
+
 // ─────────────────────────────────────────────────────────────────────────────
-// PIXEL AVATAR ENGINE
+// MUI DARK THEME
+// ─────────────────────────────────────────────────────────────────────────────
+const theme = createTheme({
+  palette: {
+    mode: 'dark',
+    primary:   { main: '#6366f1' },
+    secondary: { main: '#9333ea' },
+    background:{ default: '#0a0b14', paper: '#131420' },
+    surface:   '#1a1b2e',
+  },
+  typography: {
+    fontFamily: "'Inter', -apple-system, sans-serif",
+  },
+  components: {
+    MuiDrawer: {
+      styleOverrides: {
+        paper: { background: '#12131e', borderRight: '1px solid rgba(255,255,255,0.06)' }
+      }
+    },
+    MuiDialog: {
+      styleOverrides: {
+        paper: { background: '#1a1b2e', borderRadius: 20, border: '1px solid rgba(255,255,255,0.1)' }
+      }
+    },
+    MuiTooltip: {
+      styleOverrides: {
+        tooltip: { background: '#1a1b2e', border: '1px solid rgba(255,255,255,0.1)', fontSize: 12 }
+      }
+    },
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PIXEL AVATAR ENGINE — deterministic 8×8 sprite from name
 // ─────────────────────────────────────────────────────────────────────────────
 function seededRng(seed) {
   let s = [...(seed || '?')].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 0x12345678);
@@ -28,220 +134,191 @@ function buildPixelGrid(name) {
     const half = [];
     for (let c = 0; c < 4; c++) {
       const v = rng();
-      half.push(v < .30 ? pal[3] : v < .60 ? pal[0] : v < .80 ? pal[1] : v < .92 ? pal[2] : 'transparent');
+      half.push(v < .30 ? pal[3] : v < .60 ? pal[0] : v < .80 ? pal[1] : v < .92 ? pal[2] : null);
     }
     grid.push([...half, ...[...half].reverse()]);
   }
   return { grid, pal };
 }
-function PixelAvatar({ name, size = 32, ring = false, ghost = false }) {
+function PixelAvatar({ name, size = 36, ring = false, ghost = false, sx = {} }) {
   const { grid, pal } = buildPixelGrid(name || '?');
+  const canvasRef = useRef(null);
+  useEffect(() => {
+    const c = canvasRef.current; if (!c) return;
+    const ctx = c.getContext('2d');
+    const cell = c.width / 8;
+    ctx.clearRect(0, 0, c.width, c.height);
+    ctx.fillStyle = pal[3]; ctx.fillRect(0, 0, c.width, c.height);
+    grid.forEach((row, r) => row.forEach((col, ci) => {
+      if (col) { ctx.fillStyle = col; ctx.fillRect(ci * cell, r * cell, cell, cell); }
+    }));
+  }, [name]);
   return (
-    <div style={{
-      width: size, height: size, borderRadius: 4, overflow: 'hidden',
-      imageRendering: 'pixelated', background: pal[3], flexShrink: 0,
-      boxShadow: ring ? `0 0 0 2px ${pal[0]}, 0 0 12px ${pal[0]}55` : undefined,
-      opacity: ghost ? 0.4 : 1, filter: ghost ? 'grayscale(1)' : undefined,
-    }}>
-      <svg width={size} height={size} viewBox="0 0 8 8" style={{ imageRendering: 'pixelated', display: 'block' }}>
-        {grid.map((row, r) => row.map((col, c) =>
-          col !== 'transparent' ? <rect key={`${r}-${c}`} x={c} y={r} width={1} height={1} fill={col} /> : null
-        ))}
-      </svg>
-    </div>
+    <Box sx={{ position: 'relative', flexShrink: 0, ...sx }}>
+      <Box component="canvas" ref={canvasRef} width={64} height={64}
+        sx={{ width: size, height: size, borderRadius: '6px', imageRendering: 'pixelated', display: 'block', opacity: ghost ? 0.4 : 1, filter: ghost ? 'grayscale(1)' : 'none', boxShadow: ring ? `0 0 0 2px ${pal[0]}, 0 0 16px ${pal[0]}55` : 'none' }} />
+    </Box>
   );
 }
 function accentColor(name) {
-  const rng = seededRng(name || '?');
-  return PALETTES[Math.floor(rng() * PALETTES.length)][0];
+  const rng = seededRng(name || '?'); return PALETTES[Math.floor(rng() * PALETTES.length)][0];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
-const EMOJIS = ['👍','❤️','😂','😮','🔥','💯','👏','😢','🎉','💀'];
+const REACTION_EMOJIS = ['👍','❤️','😂','😮','🔥','💯','👏','😢','🎉','💀','✨','🤯'];
 const STATUSES = [
-  { value: 'online',   label: 'Online',   color: '#34d399', icon: '🟢' },
-  { value: 'coding',   label: 'Coding',   color: '#60a5fa', icon: '👨‍💻' },
-  { value: 'gaming',   label: 'Gaming',   color: '#a78bfa', icon: '🎮' },
-  { value: 'music',    label: 'Music',    color: '#f472b6', icon: '🎵' },
-  { value: 'afk',      label: 'AFK',      color: '#94a3b8', icon: '😴' },
-  { value: 'busy',     label: 'Busy',     color: '#f87171', icon: '🔴' },
+  { value: 'online',  label: 'Online',   color: '#22c55e', Icon: FiberManualRecordIcon },
+  { value: 'coding',  label: 'Coding',   color: '#60a5fa', Icon: CodeIcon },
+  { value: 'gaming',  label: 'Gaming',   color: '#a78bfa', Icon: SportsEsportsIcon },
+  { value: 'music',   label: 'Music',    color: '#f472b6', Icon: MusicNoteIcon },
+  { value: 'afk',     label: 'AFK',      color: '#94a3b8', Icon: BedIcon },
+  { value: 'busy',    label: 'Busy',     color: '#f87171', Icon: DoNotDisturbIcon },
+];
+const LANGUAGES = [
+  { code: 'en', label: 'English 🇺🇸' }, { code: 'es', label: 'Spanish 🇪🇸' },
+  { code: 'fr', label: 'French 🇫🇷' },  { code: 'de', label: 'German 🇩🇪' },
+  { code: 'hi', label: 'Hindi 🇮🇳' },   { code: 'ja', label: 'Japanese 🇯🇵' },
+  { code: 'ar', label: 'Arabic 🇸🇦' },  { code: 'pt', label: 'Portuguese 🇧🇷' },
+  { code: 'zh', label: 'Chinese 🇨🇳' }, { code: 'ko', label: 'Korean 🇰🇷' },
 ];
 const CONSEQUENCE_RULES = [
-  { trigger: /fuck|shit|damn/i,  effect: 'flip',   msg: '🙃 Watch your language!' },
-  { trigger: /lol|haha|hehe/i,   effect: 'rainbow', msg: '🌈 Laughing activated rainbow mode!' },
-  { trigger: /spam|spam|spam/i,  effect: 'tiny',   msg: '🤏 Spammers get tiny text!' },
+  { trigger: /\b(damn|shit|fuck)\b/i,    effect: 'flip',    label: '🙃 Flipped!' },
+  { trigger: /\b(lol|haha|lmao|lmfao)\b/i, effect: 'rainbow', label: '🌈 Rainbow Mode!' },
+  { trigger: /spam/i,                    effect: 'tiny',    label: '🤏 Tiny Text!' },
 ];
-const BANNED_WORDS_DEFAULT = ['spam'];
-const LANGUAGES = [
-  { code: 'en', label: '🇺🇸 English' },
-  { code: 'es', label: '🇪🇸 Spanish' },
-  { code: 'fr', label: '🇫🇷 French' },
-  { code: 'de', label: '🇩🇪 German' },
-  { code: 'hi', label: '🇮🇳 Hindi' },
-  { code: 'ja', label: '🇯🇵 Japanese' },
-  { code: 'ar', label: '🇸🇦 Arabic' },
-  { code: 'pt', label: '🇧🇷 Portuguese' },
-];
-
 const formatTime = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-let _id = 0;
-const makeId = () => `msg_${Date.now()}_${_id++}`;
+let _msgId = 0;
+const makeId = () => `msg_${Date.now()}_${_msgId++}`;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CONFETTI COMPONENT (Cinematic Moment)
+// CONFETTI
 // ─────────────────────────────────────────────────────────────────────────────
 function Confetti({ onDone }) {
-  const particles = useMemo(() => Array.from({ length: 60 }, (_, i) => ({
-    id: i,
-    x: Math.random() * 100,
-    color: ['#6366f1','#ec4899','#f59e0b','#10b981','#3b82f6','#f97316'][i % 6],
-    size: 6 + Math.random() * 8,
-    delay: Math.random() * 0.8,
-    duration: 1.5 + Math.random(),
+  const particles = useMemo(() => Array.from({ length: 70 }, (_, i) => ({
+    id: i, x: Math.random() * 100,
+    color: ['#6366f1','#ec4899','#f59e0b','#10b981','#3b82f6','#f97316','#8b5cf6'][i % 7],
+    size: 6 + Math.random() * 9, delay: Math.random() * 1, dur: 1.8 + Math.random() * 0.8,
   })), []);
-
-  useEffect(() => { const t = setTimeout(onDone, 3500); return () => clearTimeout(t); }, [onDone]);
-
+  useEffect(() => { const t = setTimeout(onDone, 4000); return () => clearTimeout(t); }, [onDone]);
   return (
-    <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 999, overflow: 'hidden' }}>
+    <Box sx={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 9999, overflow: 'hidden' }}>
       {particles.map(p => (
-        <div key={p.id} style={{
+        <Box key={p.id} sx={{
           position: 'absolute', left: `${p.x}%`, top: -20,
-          width: p.size, height: p.size, borderRadius: 2,
-          background: p.color,
-          animation: `confettiFall ${p.duration}s ${p.delay}s ease-in forwards`,
+          width: p.size, height: p.size, borderRadius: '2px',
+          background: p.color, animation: `confettiFall ${p.dur}s ${p.delay}s ease-in forwards`,
         }} />
       ))}
-      <style>{`
-        @keyframes confettiFall {
-          0% { transform: translateY(0) rotate(0deg); opacity: 1; }
-          100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
-        }
-      `}</style>
-    </div>
+    </Box>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// REACTION PICKER — fixed: uses pointer events, not hover
+// REACTION PICKER
 // ─────────────────────────────────────────────────────────────────────────────
-function ReactionPicker({ onPick, onClose, isMe }) {
+function ReactionPicker({ onPick, onClose, isMe, anchorRef }) {
   const ref = useRef(null);
-
   useEffect(() => {
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
-    document.addEventListener('pointerdown', handler);
-    return () => document.removeEventListener('pointerdown', handler);
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target) && !anchorRef?.current?.contains(e.target)) onClose(); };
+    document.addEventListener('pointerdown', handler, true);
+    return () => document.removeEventListener('pointerdown', handler, true);
   }, [onClose]);
-
   return (
-    <div ref={ref} style={{
-      position: 'absolute', zIndex: 50,
-      bottom: 'calc(100% + 6px)',
-      [isMe ? 'right' : 'left']: 0,
-      background: '#1a1b2e',
-      border: '1px solid rgba(255,255,255,0.12)',
-      borderRadius: 18, padding: '6px 8px',
-      display: 'flex', gap: 2,
-      boxShadow: '0 8px 40px rgba(0,0,0,0.6)',
-      flexWrap: 'wrap', maxWidth: 260,
+    <Fade in><Paper ref={ref} elevation={8} sx={{
+      position: 'absolute', zIndex: 100,
+      bottom: 'calc(100% + 8px)', [isMe ? 'right' : 'left']: 0,
+      background: '#1a1b2e', border: '1px solid rgba(255,255,255,0.12)',
+      borderRadius: 4, p: 0.75, display: 'flex', flexWrap: 'wrap', gap: 0.25,
+      maxWidth: 280, boxShadow: '0 12px 48px rgba(0,0,0,0.7)',
     }}>
-      {EMOJIS.map(e => (
-        <button key={e}
-          onPointerDown={(ev) => { ev.stopPropagation(); onPick(e); onClose(); }}
-          style={{
-            width: 36, height: 36, fontSize: 20, background: 'transparent',
-            border: 'none', cursor: 'pointer', borderRadius: 10,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            transition: 'transform 0.1s, background 0.1s',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.3)'; e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
-          onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.background = 'transparent'; }}
-        >{e}</button>
+      {REACTION_EMOJIS.map(emoji => (
+        <IconButton key={emoji} size="small"
+          onPointerDown={(e) => { e.stopPropagation(); onPick(emoji); onClose(); }}
+          sx={{ fontSize: 22, width: 38, height: 38, borderRadius: 2, '&:hover': { background: 'rgba(255,255,255,0.1)', transform: 'scale(1.3)' }, transition: 'transform 0.1s' }}>
+          {emoji}
+        </IconButton>
       ))}
-    </div>
+    </Paper></Fade>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MESSAGE BUBBLE
 // ─────────────────────────────────────────────────────────────────────────────
-function MessageBubble({ msg, isMe, showAvatar, showName, onReact, onImageClick, myUsername, isSpectator, cinematicMsgId }) {
+function MessageBubble({ msg, isMe, showAvatar, showName, onReact, myUsername, isSpectator, cinematicMsgId }) {
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [showReactBtn, setShowReactBtn] = useState(false);
+  const [hovered, setHovered]       = useState(false);
+  const reactBtnRef = useRef(null);
   const longPressRef = useRef(null);
   const isCinematic = cinematicMsgId === msg.id;
 
-  const reactions = Object.entries(msg.reactions || {}).filter(([, users]) => users.length > 0);
+  const reactions = Object.entries(msg.reactions || {}).filter(([, u]) => u.length > 0);
+  const myReactions = reactions.filter(([, u]) => u.includes(myUsername)).map(([e]) => e);
 
-  // Consequence effect on the message
-  let effectStyle = {};
-  let effectClass = '';
-  if (msg.effect === 'flip') effectStyle = { transform: 'scaleY(-1)', display: 'inline-block' };
-  if (msg.effect === 'rainbow') effectClass = 'rainbow-text';
-  if (msg.effect === 'tiny') effectStyle = { fontSize: 9 };
+  // Consequence styling
+  const effectSx = msg.effect === 'flip' ? { transform: 'scaleY(-1)', display: 'inline-block' }
+    : msg.effect === 'tiny' ? { fontSize: '9px !important' } : {};
+  const effectClass = msg.effect === 'rainbow' ? 'rainbow-txt' : '';
 
-  const startLP = () => { longPressRef.current = setTimeout(() => setPickerOpen(true), 400); };
-  const cancelLP = () => clearTimeout(longPressRef.current);
+  const handleTouchStart = () => { if (!isSpectator) longPressRef.current = setTimeout(() => setPickerOpen(true), 420); };
+  const handleTouchEnd   = () => clearTimeout(longPressRef.current);
 
   return (
-    <div
-      style={{
-        display: 'flex', alignItems: 'flex-end', gap: 8,
-        flexDirection: isMe ? 'row-reverse' : 'row',
-        transition: 'all 0.4s',
-        ...(isCinematic ? { transform: 'scale(1.04)', filter: 'drop-shadow(0 0 16px #f59e0b)' } : {}),
-      }}
-      onMouseEnter={() => !isSpectator && setShowReactBtn(true)}
-      onMouseLeave={() => { setShowReactBtn(false); }}
-    >
-      {/* Avatar */}
-      {!isMe && (
-        <div style={{ width: 30, flexShrink: 0 }}>
-          {showAvatar && <PixelAvatar name={msg.sender} size={28} ghost={msg.isClone} />}
-        </div>
-      )}
+    <Box
+      className="msg-anim"
+      onMouseEnter={() => !isSpectator && setHovered(true)}
+      onMouseLeave={() => { setHovered(false); }}
+      sx={{ display: 'flex', alignItems: 'flex-end', gap: 1, flexDirection: isMe ? 'row-reverse' : 'row',
+        className: isCinematic ? 'cinematic' : '',
+        filter: isCinematic ? 'drop-shadow(0 0 20px #f59e0b)' : 'none',
+        transition: 'filter 0.3s', mb: 0.25,
+      }}>
 
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start', maxWidth: '72%', position: 'relative' }}>
-        {showName && (
-          <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 3, paddingLeft: 2, color: accentColor(msg.sender) }}>
-            {msg.isClone ? `[Auto-${msg.sender}] 🤖` : msg.isAnon ? '👻 Mystery Guest' : msg.sender}
-          </div>
+      {/* Avatar */}
+      <Box sx={{ width: 34, flexShrink: 0 }}>
+        {!isMe && showAvatar && <PixelAvatar name={msg.isAnon ? 'Ghost' : msg.sender} size={30} ghost={msg.isAnon} />}
+      </Box>
+
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start', maxWidth: { xs: '80%', sm: '65%' }, position: 'relative' }}>
+        {showName && !isMe && (
+          <Typography variant="caption" sx={{ fontWeight: 700, mb: 0.4, pl: 0.5, color: accentColor(msg.isAnon ? 'Ghost' : msg.sender) }}>
+            {msg.isAnon ? '👻 Mystery Guest' : msg.sender}
+          </Typography>
         )}
 
-        <div style={{ position: 'relative' }}>
-          {/* React button */}
-          {showReactBtn && !pickerOpen && !isSpectator && (
-            <button
-              onPointerDown={(e) => { e.stopPropagation(); setPickerOpen(true); }}
-              style={{
-                position: 'absolute', top: '50%', transform: 'translateY(-50%)',
-                [isMe ? 'left' : 'right']: -34, zIndex: 20,
-                width: 26, height: 26, borderRadius: '50%',
-                background: '#1a1b2e', border: '1px solid rgba(255,255,255,0.12)',
-                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 13, color: '#fff',
-              }}
-            >😊</button>
+        {/* Hover react button */}
+        <Box sx={{ position: 'relative' }}>
+          {hovered && !pickerOpen && !isSpectator && (
+            <Tooltip title="React" placement={isMe ? 'left' : 'right'}>
+              <IconButton ref={reactBtnRef} size="small"
+                onPointerDown={(e) => { e.stopPropagation(); setPickerOpen(true); }}
+                sx={{
+                  position: 'absolute', top: '50%', transform: 'translateY(-50%)',
+                  [isMe ? 'left' : 'right']: -38, zIndex: 20,
+                  width: 30, height: 30, background: '#1a1b2e',
+                  border: '1px solid rgba(255,255,255,0.12)', fontSize: 14,
+                  '&:hover': { background: '#252638' },
+                }}>
+                <EmojiEmotionsIcon sx={{ fontSize: 16, color: '#94a3b8' }} />
+              </IconButton>
+            </Tooltip>
           )}
 
           {pickerOpen && (
             <ReactionPicker
-              onPick={(emoji) => onReact(msg.id, emoji)}
-              onClose={() => { setPickerOpen(false); setShowReactBtn(false); }}
-              isMe={isMe}
+              onPick={(e) => { onReact(msg.id, e); }}
+              onClose={() => { setPickerOpen(false); setHovered(false); }}
+              isMe={isMe} anchorRef={reactBtnRef}
             />
           )}
 
           {/* Bubble */}
-          <div
-            onTouchStart={!isSpectator ? startLP : undefined}
-            onTouchEnd={cancelLP}
-            onTouchMove={cancelLP}
-            style={{
-              padding: '10px 14px', borderRadius: 18, fontSize: 14, lineHeight: 1.55,
+          <Box
+            onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} onTouchMove={handleTouchEnd}
+            sx={{
+              px: 1.75, py: 1.25, borderRadius: 3, fontSize: 14, lineHeight: 1.6,
               wordBreak: 'break-word', whiteSpace: 'pre-wrap',
               background: msg.isAnon
                 ? 'linear-gradient(135deg,#374151,#1f2937)'
@@ -249,265 +326,389 @@ function MessageBubble({ msg, isMe, showAvatar, showName, onReact, onImageClick,
                   ? 'linear-gradient(135deg,#6366f1,#9333ea)'
                   : '#1e1f2e',
               color: '#fff',
-              borderBottomRightRadius: isMe ? 4 : 18,
-              borderBottomLeftRadius: isMe ? 18 : 4,
-              border: isMe ? 'none' : '1px solid rgba(255,255,255,0.06)',
-              opacity: msg.isClone ? 0.75 : 1,
-              ...effectStyle,
-            }}
-          >
+              borderBottomRightRadius: isMe ? 4 : 24,
+              borderBottomLeftRadius:  isMe ? 24 : 4,
+              border: (isMe || msg.isAnon) ? 'none' : '1px solid rgba(255,255,255,0.07)',
+              boxShadow: isMe ? '0 2px 16px rgba(99,102,241,0.25)' : 'none',
+            }}>
             {msg.replyTo && (
-              <div style={{
-                borderLeft: '2px solid rgba(255,255,255,0.25)', paddingLeft: 8, marginBottom: 6,
-                fontSize: 11, color: 'rgba(255,255,255,0.5)', fontStyle: 'italic',
-              }}>
-                ↩ {msg.replyTo.sender}: {msg.replyTo.message?.slice(0, 60)}
-              </div>
+              <Box sx={{ borderLeft: '2px solid rgba(255,255,255,0.25)', pl: 1, mb: 0.75, opacity: 0.55, fontSize: 12 }}>
+                <b>{msg.replyTo.sender}</b>: {(msg.replyTo.message || '').slice(0, 60)}
+              </Box>
             )}
-            {msg.translate ? (
-              <>
-                <span className={effectClass} style={effectStyle}>{msg.message}</span>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginTop: 4, fontStyle: 'italic' }}>
-                  🌐 {msg.translate}
-                </div>
-              </>
-            ) : (
-              <span className={effectClass}>{msg.message}</span>
+            <Box component="span" className={effectClass} sx={effectSx}>{msg.message}</Box>
+            {msg.translate && (
+              <Typography variant="caption" sx={{ display: 'block', mt: 0.5, opacity: 0.45, fontStyle: 'italic' }}>
+                🌐 {msg.translate}
+              </Typography>
             )}
             {msg.image && (
-              <img src={msg.image} alt="shared" onClick={() => onImageClick(msg.image)}
-                style={{ maxWidth: 220, borderRadius: 10, marginTop: 6, display: 'block', cursor: 'zoom-in' }} />
+              <Box component="img" src={msg.image} alt="shared"
+                onClick={() => {}} sx={{ maxWidth: 220, borderRadius: 2, mt: 1, display: 'block', cursor: 'zoom-in', '&:hover': { opacity: 0.9 } }} />
             )}
-          </div>
-        </div>
+          </Box>
+        </Box>
 
         {/* Reaction chips */}
         {reactions.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 5, justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.4, mt: 0.6, justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
             {reactions.map(([emoji, users]) => (
-              <button key={emoji}
+              <Chip key={emoji}
+                label={`${emoji} ${users.length}`}
+                size="small"
                 onPointerDown={() => !isSpectator && onReact(msg.id, emoji)}
                 title={users.join(', ')}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 3, padding: '3px 8px',
-                  borderRadius: 99, fontSize: 13, cursor: isSpectator ? 'default' : 'pointer',
-                  background: users.includes(myUsername) ? 'rgba(99,102,241,0.25)' : 'rgba(255,255,255,0.06)',
-                  border: `1px solid ${users.includes(myUsername) ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.1)'}`,
-                  color: '#fff', transition: 'all 0.15s',
-                }}>
-                <span>{emoji}</span>
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8' }}>{users.length}</span>
-              </button>
+                sx={{
+                  height: 24, fontSize: 12, cursor: isSpectator ? 'default' : 'pointer',
+                  background: myReactions.includes(emoji) ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.07)',
+                  border: `1px solid ${myReactions.includes(emoji) ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.1)'}`,
+                  color: '#fff', '& .MuiChip-label': { px: 0.75 },
+                  '&:hover': { background: myReactions.includes(emoji) ? 'rgba(99,102,241,0.45)' : 'rgba(255,255,255,0.12)' },
+                  transition: 'all 0.15s',
+                }} />
             ))}
-          </div>
+          </Box>
         )}
 
-        {/* Time */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3, flexDirection: isMe ? 'row-reverse' : 'row', paddingLeft: 2 }}>
-          <span style={{ fontSize: 10, color: '#334155' }}>{msg.time}</span>
-          {isMe && <svg width="11" height="11" viewBox="0 0 20 20" fill="#818cf8"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
-        </div>
-      </div>
-    </div>
+        {/* Timestamp */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4, mt: 0.3, flexDirection: isMe ? 'row-reverse' : 'row', pl: 0.5 }}>
+          <Typography variant="caption" sx={{ fontSize: 10, color: 'rgba(255,255,255,0.22)' }}>{msg.time}</Typography>
+          {isMe && <DoneAllIcon sx={{ fontSize: 12, color: '#818cf8' }} />}
+        </Box>
+      </Box>
+    </Box>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MODALS
+// USER CARD in Sidebar
 // ─────────────────────────────────────────────────────────────────────────────
-function NameModal({ onSubmit }) {
+function UserCard({ user, isMe }) {
+  const st = STATUSES.find(s => s.value === (user.status || 'online')) || STATUSES[0];
+  return (
+    <ListItem disablePadding sx={{ px: 1, py: 0.4 }}>
+      <ListItemAvatar sx={{ minWidth: 42 }}>
+        <Badge overlap="circular" anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          badgeContent={<Box sx={{ width: 10, height: 10, borderRadius: '50%', background: st.color, border: '2px solid #12131e' }} />}>
+          <PixelAvatar name={user.username} size={32} ghost={user.spectator} />
+        </Badge>
+      </ListItemAvatar>
+      <ListItemText
+        primary={
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Typography variant="body2" sx={{ fontWeight: 600, color: isMe ? '#a5b4fc' : '#e2e8f0', fontSize: 13 }}>
+              {user.username}{isMe ? ' (you)' : ''}
+            </Typography>
+            {user.spectator && <VisibilityIcon sx={{ fontSize: 12, color: '#64748b' }} />}
+          </Box>
+        }
+        secondary={
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3 }}>
+            <st.Icon sx={{ fontSize: 10, color: st.color }} />
+            <Typography variant="caption" sx={{ fontSize: 10, color: st.color }}>{st.label}</Typography>
+          </Box>
+        }
+      />
+    </ListItem>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// JOIN MODAL
+// ─────────────────────────────────────────────────────────────────────────────
+function JoinModal({ onSubmit }) {
   const [name, setName] = useState('');
   const [lang, setLang] = useState('en');
-  const ref = useRef(null);
-  useEffect(() => ref.current?.focus(), []);
+  const inputRef = useRef(null);
+  useEffect(() => { setTimeout(() => inputRef.current?.focus(), 100); }, []);
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(16px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div style={{ background: '#1a1b2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 28, padding: 32, width: '100%', maxWidth: 320, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
-        <div style={{ position: 'relative', padding: 12, background: '#13141f', borderRadius: 16, border: '1px solid rgba(255,255,255,0.06)' }}>
-          <PixelAvatar name={name.trim() || 'You'} size={80} ring />
-          <div style={{ position: 'absolute', bottom: -8, right: -8, fontSize: 22 }}>👾</div>
-        </div>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ color: '#fff', fontWeight: 700, fontSize: 22 }}>Join GroupChat</div>
-          <div style={{ color: '#475569', fontSize: 12, marginTop: 4 }}>Your pixel avatar is unique to your name</div>
-        </div>
-        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <input ref={ref} value={name} maxLength={24}
-            onChange={e => setName(e.target.value)}
+    <Box sx={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', p: 2 }}>
+      <Box sx={{ background: '#1a1b2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, p: 4, width: '100%', maxWidth: 360, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, animation: 'popModal 0.25s cubic-bezier(.34,1.56,.64,1) both' }}>
+        <Box sx={{ position: 'relative', p: 1.5, background: '#0a0b14', borderRadius: 3, border: '1px solid rgba(255,255,255,0.07)' }}>
+          <PixelAvatar name={name.trim() || 'You'} size={88} ring />
+          <AutoAwesomeIcon sx={{ position: 'absolute', bottom: -4, right: -4, fontSize: 22, color: '#f59e0b' }} />
+        </Box>
+        <Box sx={{ textAlign: 'center' }}>
+          <Typography variant="h5" sx={{ fontWeight: 800, color: '#fff', letterSpacing: '-0.5px' }}>Join GroupChat</Typography>
+          <Typography variant="caption" sx={{ color: '#475569' }}>Your pixel avatar is unique to your name</Typography>
+        </Box>
+        <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+          <TextField inputRef={inputRef} value={name} onChange={e => setName(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && name.trim() && onSubmit(name.trim(), lang)}
-            placeholder="Your name…"
-            style={{ width: '100%', padding: '12px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#fff', fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
-          <select value={lang} onChange={e => setLang(e.target.value)}
-            style={{ width: '100%', padding: '12px 16px', background: '#13141f', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#fff', fontSize: 14, outline: 'none', cursor: 'pointer' }}>
-            {LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
-          </select>
-          <button disabled={!name.trim()} onClick={() => onSubmit(name.trim(), lang)}
-            style={{ width: '100%', padding: 13, borderRadius: 12, background: name.trim() ? 'linear-gradient(135deg,#6366f1,#9333ea)' : 'rgba(255,255,255,0.05)', color: name.trim() ? '#fff' : '#334155', fontWeight: 600, fontSize: 15, border: 'none', cursor: name.trim() ? 'pointer' : 'not-allowed', transition: 'all 0.15s' }}>
+            placeholder="Your name…" variant="outlined" fullWidth size="medium"
+            inputProps={{ maxLength: 24 }}
+            sx={{ '& .MuiOutlinedInput-root': { background: 'rgba(255,255,255,0.04)', borderRadius: 2, color: '#fff', '& fieldset': { borderColor: 'rgba(255,255,255,0.1)' }, '&:hover fieldset': { borderColor: 'rgba(255,255,255,0.2)' }, '&.Mui-focused fieldset': { borderColor: '#6366f1' } }, '& .MuiInputBase-input::placeholder': { color: '#475569' } }} />
+          <FormControl fullWidth size="medium" sx={{ '& .MuiOutlinedInput-root': { background: 'rgba(255,255,255,0.04)', borderRadius: 2, color: '#fff', '& fieldset': { borderColor: 'rgba(255,255,255,0.1)' } }, '& .MuiSvgIcon-root': { color: '#64748b' } }}>
+            <InputLabel sx={{ color: '#64748b' }}>My Language</InputLabel>
+            <Select value={lang} onChange={e => setLang(e.target.value)} label="My Language">
+              {LANGUAGES.map(l => <MenuItem key={l.code} value={l.code}>{l.label}</MenuItem>)}
+            </Select>
+          </FormControl>
+          <Box component="button" onClick={() => name.trim() && onSubmit(name.trim(), lang)} disabled={!name.trim()}
+            sx={{ py: 1.6, borderRadius: 2.5, background: name.trim() ? 'linear-gradient(135deg,#6366f1,#9333ea)' : 'rgba(255,255,255,0.05)', color: name.trim() ? '#fff' : '#334155', fontWeight: 700, fontSize: 15, border: 'none', cursor: name.trim() ? 'pointer' : 'not-allowed', transition: 'all 0.15s', '&:hover': { opacity: 0.9 } }}>
             Enter Chat →
-          </button>
-        </div>
-      </div>
-    </div>
+          </Box>
+        </Box>
+      </Box>
+    </Box>
   );
 }
 
-function RoomModal({ onClose, onJoin, onCreate, username }) {
-  const [tab, setTab] = useState('join'); // join | create | browse
-  const [code, setCode] = useState('');
-  const [password, setPassword] = useState('');
-  const [roomName, setRoomName] = useState('');
-  const [roomPass, setRoomPass] = useState('');
+// ─────────────────────────────────────────────────────────────────────────────
+// ROOMS DIALOG
+// ─────────────────────────────────────────────────────────────────────────────
+function RoomsDialog({ open, onClose, onJoin, onCreate, username }) {
+  const [tab,       setTab]       = useState(0);
+  const [code,      setCode]      = useState('');
+  const [pass,      setPass]      = useState('');
+  const [rName,     setRName]     = useState('');
+  const [rPass,     setRPass]     = useState('');
   const [spectator, setSpectator] = useState(false);
+  const [created,   setCreated]   = useState(null);
   const [publicRooms, setPublicRooms] = useState([]);
-  const [created, setCreated] = useState(null);
-  const [error, setError] = useState('');
+  const [copied,    setCopied]    = useState(false);
 
   useEffect(() => {
+    if (!open) { setCreated(null); setCode(''); setPass(''); setRName(''); setRPass(''); return; }
     socket.emit('list rooms');
     socket.on('room list', setPublicRooms);
     socket.on('room created', (data) => setCreated(data));
-    socket.on('error', (msg) => setError(msg));
-    return () => { socket.off('room list'); socket.off('room created'); socket.off('error'); };
-  }, []);
+    return () => { socket.off('room list'); socket.off('room created'); };
+  }, [open]);
 
-  const handleCreate = () => {
-    if (!roomName.trim()) return;
-    socket.emit('create room', { name: roomName.trim(), password: roomPass, username });
-  };
+  const handleCreate = () => { if (!rName.trim()) return; socket.emit('create room', { name: rName.trim(), password: rPass, username }); };
+  const copyCode = () => { navigator.clipboard.writeText(created.roomId); setCopied(true); setTimeout(() => setCopied(false), 2000); };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(16px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
-      onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div style={{ background: '#1a1b2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 28, padding: 28, width: '100%', maxWidth: 380, maxHeight: '80vh', overflowY: 'auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-          <div style={{ color: '#fff', fontWeight: 700, fontSize: 18 }}>🏠 Rooms</div>
-          <button onClick={onClose} style={{ color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', fontSize: 20 }}>✕</button>
-        </div>
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <MeetingRoomIcon sx={{ color: '#6366f1' }} />
+          <Typography fontWeight={700}>Rooms</Typography>
+        </Box>
+        <IconButton onClick={onClose} size="small" sx={{ color: '#64748b' }}><CloseIcon /></IconButton>
+      </DialogTitle>
+      <DialogContent sx={{ pt: 0 }}>
+        <Tabs value={tab} onChange={(_, v) => { setTab(v); setCreated(null); }} sx={{ mb: 2, '& .MuiTab-root': { color: '#64748b', fontSize: 13 }, '& .Mui-selected': { color: '#a5b4fc' }, '& .MuiTabs-indicator': { background: '#6366f1' } }}>
+          <Tab label="🔑 Join Room" />
+          <Tab label="✨ Create" />
+          <Tab label="🌍 Browse" />
+        </Tabs>
 
-        {/* Tabs */}
-        <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: 4 }}>
-          {[['join','🔑 Join'],['create','✨ Create'],['browse','🌍 Browse']].map(([t, l]) => (
-            <button key={t} onClick={() => { setTab(t); setError(''); setCreated(null); }}
-              style={{ flex: 1, padding: '8px 4px', borderRadius: 9, fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer', background: tab === t ? 'rgba(99,102,241,0.3)' : 'transparent', color: tab === t ? '#a5b4fc' : '#64748b', transition: 'all 0.15s' }}>
-              {l}
-            </button>
-          ))}
-        </div>
-
-        {error && <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, padding: '8px 12px', color: '#f87171', fontSize: 13, marginBottom: 12 }}>{error}</div>}
-
-        {/* Join tab */}
-        {tab === 'join' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <input value={code} onChange={e => setCode(e.target.value.toUpperCase())} placeholder="Room code (e.g. AB12CD)" maxLength={6}
-              style={{ padding: '12px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#fff', fontSize: 16, outline: 'none', fontFamily: 'monospace', letterSpacing: 4 }} />
-            <input value={password} onChange={e => setPassword(e.target.value)} placeholder="Password (if required)"
-              type="password"
-              style={{ padding: '12px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#fff', fontSize: 15, outline: 'none' }} />
-            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', color: '#94a3b8', fontSize: 13 }}>
-              <input type="checkbox" checked={spectator} onChange={e => setSpectator(e.target.checked)} />
-              👁️ Join as Spectator (invisible — read only)
-            </label>
-            <button disabled={code.length < 4} onClick={() => onJoin(code, password, spectator)}
-              style={{ padding: 13, borderRadius: 12, background: code.length >= 4 ? 'linear-gradient(135deg,#6366f1,#9333ea)' : 'rgba(255,255,255,0.05)', color: '#fff', fontWeight: 600, border: 'none', cursor: code.length >= 4 ? 'pointer' : 'not-allowed' }}>
+        {/* Join Tab */}
+        {tab === 0 && (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            <TextField value={code} onChange={e => setCode(e.target.value.toUpperCase())} placeholder="Room code (e.g. AB12CD)" inputProps={{ maxLength: 6, style: { letterSpacing: 8, fontFamily: 'monospace', fontSize: 20, fontWeight: 700 } }} fullWidth variant="outlined"
+              sx={{ '& .MuiOutlinedInput-root': { background: 'rgba(255,255,255,0.04)', color: '#fff', '& fieldset': { borderColor: 'rgba(255,255,255,0.1)' } } }} />
+            <TextField value={pass} onChange={e => setPass(e.target.value)} placeholder="Password (if required)" type="password" fullWidth variant="outlined"
+              sx={{ '& .MuiOutlinedInput-root': { background: 'rgba(255,255,255,0.04)', color: '#fff', '& fieldset': { borderColor: 'rgba(255,255,255,0.1)' } } }} />
+            <FormControlLabel control={<Switch checked={spectator} onChange={e => setSpectator(e.target.checked)} size="small" />}
+              label={<Typography variant="body2" sx={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 0.5 }}><VisibilityIcon sx={{ fontSize: 14 }} /> Spectator mode (invisible, read-only)</Typography>} />
+            <Box component="button" disabled={code.length < 4} onClick={() => onJoin(code, pass, spectator)}
+              sx={{ py: 1.5, borderRadius: 2, background: code.length >= 4 ? 'linear-gradient(135deg,#6366f1,#9333ea)' : 'rgba(255,255,255,0.05)', color: '#fff', fontWeight: 700, border: 'none', cursor: code.length >= 4 ? 'pointer' : 'not-allowed', fontSize: 14 }}>
               Join Room
-            </button>
-          </div>
+            </Box>
+          </Box>
         )}
 
-        {/* Create tab */}
-        {tab === 'create' && !created && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <input value={roomName} onChange={e => setRoomName(e.target.value)} placeholder="Room name…" maxLength={30}
-              style={{ padding: '12px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#fff', fontSize: 16, outline: 'none' }} />
-            <input value={roomPass} onChange={e => setRoomPass(e.target.value)} placeholder="Password (optional)" type="password"
-              style={{ padding: '12px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#fff', fontSize: 15, outline: 'none' }} />
-            <button disabled={!roomName.trim()} onClick={handleCreate}
-              style={{ padding: 13, borderRadius: 12, background: roomName.trim() ? 'linear-gradient(135deg,#10b981,#059669)' : 'rgba(255,255,255,0.05)', color: '#fff', fontWeight: 600, border: 'none', cursor: roomName.trim() ? 'pointer' : 'not-allowed' }}>
-              Create Private Room
-            </button>
-          </div>
+        {/* Create Tab */}
+        {tab === 1 && !created && (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            <TextField value={rName} onChange={e => setRName(e.target.value)} placeholder="Room name…" inputProps={{ maxLength: 30 }} fullWidth variant="outlined"
+              sx={{ '& .MuiOutlinedInput-root': { background: 'rgba(255,255,255,0.04)', color: '#fff', '& fieldset': { borderColor: 'rgba(255,255,255,0.1)' } } }} />
+            <TextField value={rPass} onChange={e => setRPass(e.target.value)} placeholder="Password (optional)" type="password" fullWidth variant="outlined"
+              InputProps={{ startAdornment: <InputAdornment position="start"><LockIcon sx={{ fontSize: 16, color: '#64748b' }} /></InputAdornment> }}
+              sx={{ '& .MuiOutlinedInput-root': { background: 'rgba(255,255,255,0.04)', color: '#fff', '& fieldset': { borderColor: 'rgba(255,255,255,0.1)' } } }} />
+            <Box component="button" disabled={!rName.trim()} onClick={handleCreate}
+              sx={{ py: 1.5, borderRadius: 2, background: rName.trim() ? 'linear-gradient(135deg,#10b981,#059669)' : 'rgba(255,255,255,0.05)', color: '#fff', fontWeight: 700, border: 'none', cursor: rName.trim() ? 'pointer' : 'not-allowed', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+              <AddIcon sx={{ fontSize: 18 }} /> Create Private Room
+            </Box>
+          </Box>
         )}
 
-        {tab === 'create' && created && (
-          <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center' }}>
-            <div style={{ fontSize: 40 }}>🎉</div>
-            <div style={{ color: '#fff', fontWeight: 700, fontSize: 18 }}>{created.name}</div>
-            <div style={{ background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 14, padding: '16px 24px' }}>
-              <div style={{ color: '#94a3b8', fontSize: 11, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Room Code</div>
-              <div style={{ color: '#fff', fontSize: 28, fontWeight: 900, letterSpacing: 8, fontFamily: 'monospace' }}>{created.roomId}</div>
-            </div>
-            <div style={{ color: '#64748b', fontSize: 12 }}>Share this code with your friends</div>
-            <button onClick={() => onJoin(created.roomId, roomPass, false)}
-              style={{ padding: '12px 24px', borderRadius: 12, background: 'linear-gradient(135deg,#6366f1,#9333ea)', color: '#fff', fontWeight: 600, border: 'none', cursor: 'pointer' }}>
-              Enter Room →
-            </button>
-          </div>
+        {/* Created success */}
+        {tab === 1 && created && (
+          <Box sx={{ textAlign: 'center', py: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+            <CelebrationIcon sx={{ fontSize: 48, color: '#f59e0b' }} />
+            <Typography variant="h6" fontWeight={700} color="white">{created.name}</Typography>
+            <Box sx={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 3, p: 3, width: '100%' }}>
+              <Typography variant="caption" sx={{ color: '#64748b', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Room Code</Typography>
+              <Typography variant="h3" sx={{ fontWeight: 900, letterSpacing: 12, fontFamily: 'monospace', color: '#a5b4fc', mt: 0.5 }}>{created.roomId}</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', gap: 1, width: '100%' }}>
+              <Box component="button" onClick={copyCode} sx={{ flex: 1, py: 1.2, borderRadius: 2, background: 'rgba(255,255,255,0.06)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, fontSize: 13 }}>
+                {copied ? <><CheckIcon sx={{ fontSize: 16 }} /> Copied!</> : <><ContentCopyIcon sx={{ fontSize: 16 }} /> Copy Code</>}
+              </Box>
+              <Box component="button" onClick={() => onJoin(created.roomId, rPass, false)} sx={{ flex: 1, py: 1.2, borderRadius: 2, background: 'linear-gradient(135deg,#6366f1,#9333ea)', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>
+                Enter Room →
+              </Box>
+            </Box>
+          </Box>
         )}
 
-        {/* Browse tab */}
-        {tab === 'browse' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {publicRooms.length === 0 && <div style={{ color: '#475569', textAlign: 'center', padding: 20 }}>No public rooms yet</div>}
-            {publicRooms.map(r => (
-              <div key={r.id} onClick={() => onJoin(r.id, '', false)}
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'rgba(255,255,255,0.04)', borderRadius: 14, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.06)', transition: 'background 0.15s' }}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.1)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}>
-                <div>
-                  <div style={{ color: '#fff', fontWeight: 600, fontSize: 14 }}>#{r.name}</div>
-                  <div style={{ color: '#475569', fontSize: 11 }}>{r.count} online</div>
-                </div>
-                <div style={{ color: '#6366f1', fontSize: 12, fontWeight: 600 }}>Join →</div>
-              </div>
-            ))}
-          </div>
+        {/* Browse Tab */}
+        {tab === 2 && (
+          <Box>
+            {publicRooms.length === 0 && (
+              <Box sx={{ textAlign: 'center', py: 4, color: '#475569' }}>
+                <PublicIcon sx={{ fontSize: 40, mb: 1, opacity: 0.3 }} />
+                <Typography>No public rooms yet</Typography>
+              </Box>
+            )}
+            <List disablePadding>
+              {publicRooms.map(r => (
+                <ListItem key={r.id} onClick={() => onJoin(r.id, '', false)}
+                  sx={{ borderRadius: 2, mb: 0.5, cursor: 'pointer', '&:hover': { background: 'rgba(99,102,241,0.1)' }, border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <ListItemAvatar><Box sx={{ width: 36, height: 36, borderRadius: 2, background: 'rgba(99,102,241,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><TagIcon sx={{ color: '#6366f1' }} /></Box></ListItemAvatar>
+                  <ListItemText primary={<Typography fontWeight={600} color="white" fontSize={14}>{r.name}</Typography>} secondary={<Typography variant="caption" color="#64748b">{r.count} online</Typography>} />
+                  <Typography variant="caption" sx={{ color: '#6366f1', fontWeight: 600 }}>Join →</Typography>
+                </ListItem>
+              ))}
+            </List>
+          </Box>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// VIBE BOARD PANEL
+// VIBE BOARD DIALOG
 // ─────────────────────────────────────────────────────────────────────────────
-function VibeBoard({ items, onDrop, onClose }) {
+function VibeBoardDialog({ open, onClose, items, onDrop }) {
   const [url, setUrl] = useState('');
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: 16 }}
-      onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ background: '#1a1b2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '24px 24px 0 0', padding: 24, width: '100%', maxWidth: 600, maxHeight: '70vh', display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ color: '#fff', fontWeight: 700, fontSize: 17 }}>🎨 Vibe Board</div>
-          <button onClick={onClose} style={{ color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', fontSize: 20 }}>✕</button>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <input value={url} onChange={e => setUrl(e.target.value)} placeholder="Paste GIF or image URL…"
-            style={{ flex: 1, padding: '10px 14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#fff', fontSize: 14, outline: 'none' }} />
-          <button onClick={() => { if (url.trim()) { onDrop(url.trim()); setUrl(''); } }}
-            style={{ padding: '10px 16px', borderRadius: 12, background: 'linear-gradient(135deg,#6366f1,#9333ea)', color: '#fff', fontWeight: 600, border: 'none', cursor: 'pointer', fontSize: 13 }}>
-            Drop
-          </button>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 10, overflowY: 'auto' }}>
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}><PaletteIcon sx={{ color: '#f472b6' }} /><Typography fontWeight={700}>Vibe Board</Typography></Box>
+        <IconButton onClick={onClose} size="small" sx={{ color: '#64748b' }}><CloseIcon /></IconButton>
+      </DialogTitle>
+      <DialogContent>
+        <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+          <TextField value={url} onChange={e => setUrl(e.target.value)} placeholder="Paste a GIF or image URL…" fullWidth size="small" variant="outlined"
+            sx={{ '& .MuiOutlinedInput-root': { background: 'rgba(255,255,255,0.04)', color: '#fff', '& fieldset': { borderColor: 'rgba(255,255,255,0.1)' } } }} />
+          <IconButton onClick={() => { if (url.trim()) { onDrop(url.trim()); setUrl(''); } }}
+            sx={{ background: 'linear-gradient(135deg,#6366f1,#9333ea)', borderRadius: 2, '&:hover': { opacity: 0.9 } }}>
+            <AddIcon sx={{ color: '#fff' }} />
+          </IconButton>
+        </Box>
+        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(140px,1fr))', gap: 1.5 }}>
           {items.map(item => (
-            <div key={item.id} style={{ borderRadius: 12, overflow: 'hidden', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', position: 'relative' }}>
-              <img src={item.url} alt="vibe" style={{ width: '100%', height: 100, objectFit: 'cover', display: 'block' }} onError={e => { e.currentTarget.style.display = 'none'; }} />
-              <div style={{ padding: '4px 8px', fontSize: 10, color: '#475569', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>by {item.sender}</div>
-            </div>
+            <Box key={item.id} sx={{ borderRadius: 2, overflow: 'hidden', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+              <Box component="img" src={item.url} alt="vibe" sx={{ width: '100%', height: 110, objectFit: 'cover', display: 'block' }} onError={e => { e.currentTarget.style.display = 'none'; }} />
+              <Typography variant="caption" sx={{ display: 'block', px: 1, py: 0.5, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>by {item.sender}</Typography>
+            </Box>
           ))}
-          {items.length === 0 && <div style={{ color: '#334155', fontSize: 13, gridColumn: '1/-1', textAlign: 'center', padding: 20 }}>No vibes yet — drop something!</div>}
-        </div>
-      </div>
-    </div>
+          {items.length === 0 && (
+            <Box sx={{ gridColumn: '1/-1', textAlign: 'center', py: 5, color: '#334155' }}>
+              <ImageIcon sx={{ fontSize: 48, mb: 1, opacity: 0.3 }} />
+              <Typography>Drop GIFs or images to build the vibe</Typography>
+            </Box>
+          )}
+        </Box>
+      </DialogContent>
+    </Dialog>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MAIN CHAT
+// SIDEBAR CONTENT
+// ─────────────────────────────────────────────────────────────────────────────
+const SIDEBAR_W = 260;
+function SidebarContent({ sender, myStatus, onStatusChange, onlineUsers, currentRoom, roomDisplayName, onOpenRooms, onOpenVibe, vibeCount, isSpectator, anonMode }) {
+  const stObj = STATUSES.find(s => s.value === myStatus) || STATUSES[0];
+  const [showStatusPicker, setShowStatusPicker] = useState(false);
+
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#12131e' }}>
+      {/* Brand */}
+      <Box sx={{ px: 2.5, py: 2, borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+        <Box sx={{ width: 36, height: 36, borderRadius: 2.5, background: 'linear-gradient(135deg,#6366f1,#9333ea)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>👾</Box>
+        <Box>
+          <Typography variant="body1" sx={{ fontWeight: 800, color: '#fff', letterSpacing: '-0.3px', lineHeight: 1 }}>GroupChat</Typography>
+          <Typography variant="caption" sx={{ color: '#475569', display: 'flex', alignItems: 'center', gap: 0.3 }}>
+            <TagIcon sx={{ fontSize: 10 }} />{roomDisplayName}
+          </Typography>
+        </Box>
+      </Box>
+
+      {/* Quick actions */}
+      <Box sx={{ px: 1.5, pt: 1.5, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+        <Box component="button" onClick={onOpenRooms}
+          sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 1.1, borderRadius: 2.5, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', color: '#a5b4fc', cursor: 'pointer', fontWeight: 600, fontSize: 13, transition: 'all 0.15s', '&:hover': { background: 'rgba(99,102,241,0.2)' } }}>
+          <MeetingRoomIcon sx={{ fontSize: 18 }} /> Rooms
+          <Chip label={currentRoom === 'general' ? 'General' : 'Private'} size="small" sx={{ ml: 'auto', height: 20, fontSize: 10, background: 'rgba(99,102,241,0.25)', color: '#a5b4fc' }} />
+        </Box>
+        <Box component="button" onClick={onOpenVibe}
+          sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 1.1, borderRadius: 2.5, background: 'rgba(236,72,153,0.08)', border: '1px solid rgba(236,72,153,0.18)', color: '#f472b6', cursor: 'pointer', fontWeight: 600, fontSize: 13, transition: 'all 0.15s', '&:hover': { background: 'rgba(236,72,153,0.16)' } }}>
+          <PaletteIcon sx={{ fontSize: 18 }} /> Vibe Board
+          {vibeCount > 0 && <Chip label={vibeCount} size="small" sx={{ ml: 'auto', height: 20, fontSize: 10, background: 'rgba(236,72,153,0.25)', color: '#f472b6' }} />}
+        </Box>
+      </Box>
+
+      <Divider sx={{ mx: 1.5, my: 1.5, borderColor: 'rgba(255,255,255,0.06)' }} />
+
+      {/* You */}
+      <Box sx={{ px: 2, pb: 1.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <Typography variant="caption" sx={{ color: '#334155', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 700, fontSize: 10 }}>You</Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2, mt: 1 }}>
+          <Tooltip title="Click to change status" placement="right">
+            <Box sx={{ position: 'relative', cursor: 'pointer' }} onClick={() => setShowStatusPicker(v => !v)}>
+              <PixelAvatar name={sender} size={36} ring ghost={isSpectator} />
+              <Box sx={{ position: 'absolute', bottom: -2, right: -2, width: 13, height: 13, borderRadius: '50%', background: stObj.color, border: '2px solid #12131e' }} />
+            </Box>
+          </Tooltip>
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Typography variant="body2" sx={{ fontWeight: 700, color: '#e2e8f0', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sender}</Typography>
+              {isSpectator && <VisibilityIcon sx={{ fontSize: 12, color: '#64748b' }} />}
+              {anonMode && <PersonOffIcon sx={{ fontSize: 12, color: '#9ca3af' }} />}
+            </Box>
+            <Typography variant="caption" sx={{ color: stObj.color, fontSize: 10, display: 'flex', alignItems: 'center', gap: 0.3 }}>
+              <stObj.Icon sx={{ fontSize: 11 }} /> {stObj.label}
+            </Typography>
+          </Box>
+        </Box>
+
+        {/* Status picker */}
+        {showStatusPicker && (
+          <Box sx={{ mt: 1, background: '#0a0b14', borderRadius: 2, border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+            {STATUSES.map(s => (
+              <Box key={s.value} component="button" onClick={() => { onStatusChange(s.value); setShowStatusPicker(false); }}
+                sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 0.9, width: '100%', background: myStatus === s.value ? 'rgba(99,102,241,0.15)' : 'transparent', border: 'none', cursor: 'pointer', color: s.color, fontSize: 13, fontWeight: 600, '&:hover': { background: 'rgba(255,255,255,0.05)' } }}>
+                <s.Icon sx={{ fontSize: 15 }} /> {s.label}
+              </Box>
+            ))}
+          </Box>
+        )}
+      </Box>
+
+      {/* Online users */}
+      <Box sx={{ flex: 1, overflowY: 'auto', px: 1, py: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 1, mb: 0.5 }}>
+          <Typography variant="caption" sx={{ color: '#334155', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 700, fontSize: 10 }}>
+            Online — {onlineUsers.filter(u => !u.spectator).length}
+          </Typography>
+          <Box sx={{ width: 7, height: 7, borderRadius: '50%', background: '#22c55e', animation: 'pulseDot 2s infinite' }} />
+        </Box>
+        <List disablePadding>
+          {onlineUsers.map((u, i) => <UserCard key={i} user={u} isMe={u.username === sender} />)}
+          {onlineUsers.length === 0 && (
+            <Typography variant="caption" sx={{ color: '#334155', textAlign: 'center', display: 'block', py: 2 }}>No one else here yet</Typography>
+          )}
+        </List>
+      </Box>
+    </Box>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MAIN CHAT COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
 export default function Chat() {
+  const isMobile = useMediaQuery('(max-width:767px)');
+
   const [sender,       setSender]       = useState('');
   const [userLang,     setUserLang]     = useState('en');
   const [nameReady,    setNameReady]    = useState(false);
@@ -515,82 +716,82 @@ export default function Chat() {
   const [messages,     setMessages]     = useState([]);
   const [typingUsers,  setTypingUsers]  = useState([]);
   const [onlineUsers,  setOnlineUsers]  = useState([]);
-  const [showSidebar,  setShowSidebar]  = useState(false);
+  const [drawerOpen,   setDrawerOpen]   = useState(false);
   const [connected,    setConnected]    = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
   const [lightboxSrc,  setLightboxSrc]  = useState(null);
   const [isSpectator,  setIsSpectator]  = useState(false);
   const [currentRoom,  setCurrentRoom]  = useState('general');
-  const [roomName,     setRoomName]     = useState('General');
-  const [showRoomModal,setShowRoomModal]= useState(false);
-  const [showVibe,     setShowVibe]     = useState(false);
+  const [roomDisplay,  setRoomDisplay]  = useState('General');
+  const [roomsOpen,    setRoomsOpen]    = useState(false);
+  const [vibeOpen,     setVibeOpen]     = useState(false);
   const [vibeItems,    setVibeItems]    = useState([]);
   const [myStatus,     setMyStatus]     = useState('online');
-  const [showStatus,   setShowStatus]   = useState(false);
   const [cinematicId,  setCinematicId]  = useState(null);
   const [confetti,     setConfetti]     = useState(false);
-  const [notification, setNotification] = useState(null);
   const [anonMode,     setAnonMode]     = useState(false);
-  const [unread,       setUnread]       = useState(0);
+  const [snack,        setSnack]        = useState({ open: false, msg: '', severity: 'info' });
+  const [unreadCount,  setUnreadCount]  = useState(0);
+  const [scrollBottom, setScrollBottom] = useState(true);
 
   const messagesEndRef  = useRef(null);
   const inputRef        = useRef(null);
   const typingTimerRef  = useRef(null);
   const senderRef       = useRef('');
-  const cinematicRef    = useRef({});  // msgId -> timestamps of reactions
+  const userLangRef     = useRef('en');
+  const cinematicRef    = useRef({});
+  const messagesBoxRef  = useRef(null);
 
   useEffect(() => { senderRef.current = sender; }, [sender]);
+  useEffect(() => { userLangRef.current = userLang; }, [userLang]);
 
-  // ── Translate via MyMemory (free API, no key needed) ─────────────────────
+  const showSnack = (msg, severity = 'info') => setSnack({ open: true, msg, severity });
+
+  // ── Translate ────────────────────────────────────────────────────────────
   const translateText = useCallback(async (text, targetLang) => {
-    if (targetLang === 'en') return null;
+    if (!targetLang || targetLang === 'en') return null;
     try {
-      const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|${targetLang}`);
-      const data = await res.json();
-      const t = data?.responseData?.translatedText;
-      return t && t !== text ? t : null;
+      const r = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text.slice(0,300))}&langpair=en|${targetLang}`);
+      const d = await r.json();
+      const t = d?.responseData?.translatedText;
+      return t && t !== text && !t.includes('PLEASE SELECT') ? t : null;
     } catch { return null; }
   }, []);
 
-  // ── Socket events ─────────────────────────────────────────────────────────
+  // ── Socket ────────────────────────────────────────────────────────────────
   useEffect(() => {
-    socket.on('connect',    () => setConnected(true));
-    socket.on('disconnect', () => setConnected(false));
+    socket.on('connect',    () => { setConnected(true);  showSnack('Connected to server', 'success'); });
+    socket.on('disconnect', () => { setConnected(false); showSnack('Connection lost — reconnecting…', 'warning'); });
     if (socket.connected) setConnected(true);
 
-    socket.on('chat history', async (history) => {
-      const msgs = (history || []).map(m => ({ ...m, id: m.id || makeId(), reactions: m.reactions || {} }));
-      setMessages(msgs);
+    socket.on('chat history', (history) => {
+      setMessages((history || []).map(m => ({ ...m, id: m.id || makeId(), reactions: m.reactions || {} })));
     });
 
     socket.on('chat message', async (data) => {
       const msg = { ...data, id: data.id || makeId(), reactions: data.reactions || {} };
-
-      // Smart notification — only ping if mentioned or DM
       const myName = senderRef.current;
-      const mentionsMe = msg.message?.toLowerCase().includes(myName.toLowerCase());
+
       if (data.sender !== myName) {
+        const mentionsMe = msg.message?.toLowerCase().includes(myName.toLowerCase());
         if (mentionsMe) {
-          setNotification(`📣 ${data.sender} mentioned you!`);
-          setTimeout(() => setNotification(null), 4000);
+          showSnack(`📣 ${data.sender} mentioned you`, 'info');
           if (Notification.permission === 'granted') {
             new Notification(`${data.sender} mentioned you`, { body: msg.message, silent: false });
           }
         }
-        setUnread(u => u + 1);
+        if (!scrollBottom) setUnreadCount(u => u + 1);
       }
 
-      // Auto-translate incoming if user has non-English lang
       const lang = userLangRef.current;
       if (lang && lang !== 'en' && msg.message) {
-        const translated = await translateText(msg.message, lang);
-        if (translated) msg.translate = translated;
+        const t = await translateText(msg.message, lang);
+        if (t) msg.translate = t;
       }
-
       setMessages(prev => [...prev, msg]);
     });
 
-    // Fixed reaction: server sends full reactions object
+    // Fixed: server sends full reactions object
     socket.on('reaction update', ({ msgId, reactions }) => {
       setMessages(prev => prev.map(m => m.id === msgId ? { ...m, reactions } : m));
     });
@@ -599,26 +800,25 @@ export default function Chat() {
       if (s !== senderRef.current)
         setTypingUsers(prev => prev.includes(s) ? prev : [...prev, s]);
     });
-    socket.on('stop typing', ({ sender: s }) => {
-      setTypingUsers(prev => prev.filter(u => u !== s));
-    });
-
-    socket.on('user list', setOnlineUsers);
+    socket.on('stop typing', ({ sender: s }) => setTypingUsers(prev => prev.filter(u => u !== s)));
+    socket.on('user list',  setOnlineUsers);
     socket.on('vibe board', setVibeItems);
 
     socket.on('cinematic moment', ({ msgId }) => {
       setCinematicId(msgId);
       setConfetti(true);
-      setTimeout(() => setCinematicId(null), 4000);
+      showSnack('🎬 Cinematic Moment! 🎉', 'success');
+      setTimeout(() => setCinematicId(null), 5000);
     });
 
     socket.on('room joined', ({ room, name, spectator }) => {
-      setCurrentRoom(room);
-      setRoomName(name);
-      setIsSpectator(spectator);
-      setMessages([]);
-      setShowRoomModal(false);
+      setCurrentRoom(room); setRoomDisplay(name);
+      setIsSpectator(spectator); setMessages([]);
+      setRoomsOpen(false);
+      showSnack(spectator ? `👁 Joined #${name} as spectator` : `🏠 Joined #${name}`, 'success');
     });
+
+    socket.on('error', (msg) => showSnack(msg, 'error'));
 
     const onPaste = (e) => {
       for (const item of e.clipboardData.items) {
@@ -631,33 +831,36 @@ export default function Chat() {
       }
     };
     window.addEventListener('paste', onPaste);
+    if (Notification.permission === 'default') Notification.requestPermission();
 
     return () => {
-      ['connect','disconnect','chat history','chat message','reaction update',
-       'typing','stop typing','user list','vibe board','cinematic moment','room joined','error']
-        .forEach(e => socket.off(e));
+      ['connect','disconnect','chat history','chat message','reaction update','typing','stop typing','user list','vibe board','cinematic moment','room joined','error'].forEach(e => socket.off(e));
       window.removeEventListener('paste', onPaste);
     };
   }, [translateText]);
 
-  const userLangRef = useRef(userLang);
-  useEffect(() => { userLangRef.current = userLang; }, [userLang]);
-
+  // Auto-scroll
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    setUnread(0);
-  }, [messages]);
+    if (scrollBottom) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      setUnreadCount(0);
+    }
+  }, [messages, scrollBottom]);
 
-  // ── Join chat ─────────────────────────────────────────────────────────────
+  const handleScroll = (e) => {
+    const el = e.currentTarget;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    setScrollBottom(atBottom);
+    if (atBottom) setUnreadCount(0);
+  };
+
+  // ── Join ──────────────────────────────────────────────────────────────────
   const joinChat = useCallback((name, lang) => {
-    setSender(name);
-    setUserLang(lang);
-    userLangRef.current = lang;
+    setSender(name); setUserLang(lang); userLangRef.current = lang;
     setNameReady(true);
     sessionStorage.setItem('gc_sender', name);
     sessionStorage.setItem('gc_lang', lang);
     socket.emit('join', { username: name, room: 'general' });
-    if (Notification.permission === 'default') Notification.requestPermission();
   }, []);
 
   useEffect(() => {
@@ -671,37 +874,35 @@ export default function Chat() {
     socket.emit('join', { username: sender, room: roomId, password, spectator });
   }, [sender]);
 
-  // ── Send message ──────────────────────────────────────────────────────────
+  // ── Send ──────────────────────────────────────────────────────────────────
   const sendMessage = useCallback(() => {
     if (isSpectator) return;
+
     if (imagePreview) {
       socket.emit('chat message', { id: makeId(), sender, image: imagePreview, time: formatTime(), reactions: {}, isAnon: anonMode });
       setImagePreview(null); return;
     }
+
     const text = message.trim();
     if (!text) return;
 
-    // Consequence engine
     let effect = null;
+    let effectLabel = null;
     for (const rule of CONSEQUENCE_RULES) {
-      if (rule.trigger.test(text)) { effect = rule.effect; break; }
+      if (rule.trigger.test(text)) { effect = rule.effect; effectLabel = rule.label; break; }
     }
+    if (effectLabel) showSnack(effectLabel, 'warning');
 
-    const msg = {
-      id: makeId(), sender: anonMode ? 'Anonymous' : sender,
-      message: text, time: formatTime(),
-      reactions: {}, effect, isAnon: anonMode,
-    };
-    socket.emit('chat message', msg);
+    socket.emit('chat message', { id: makeId(), sender: anonMode ? 'Anonymous' : sender, message: text, time: formatTime(), reactions: {}, effect, isAnon: anonMode });
     setMessage('');
     clearTimeout(typingTimerRef.current);
     socket.emit('stop typing', { sender });
+    setTimeout(() => inputRef.current?.focus(), 50);
   }, [message, sender, imagePreview, anonMode, isSpectator]);
 
-  // ── React — optimistic update + server sync ───────────────────────────────
+  // ── React ─────────────────────────────────────────────────────────────────
   const handleReact = useCallback((msgId, emoji) => {
     if (isSpectator) return;
-    // Optimistic local update
     setMessages(prev => prev.map(m => {
       if (m.id !== msgId) return m;
       const r = { ...m.reactions };
@@ -712,7 +913,7 @@ export default function Chat() {
     }));
     socket.emit('reaction', { msgId, emoji, user: sender });
 
-    // Check for cinematic moment (5 reactions in 10s on same msg)
+    // Cinematic check
     if (!cinematicRef.current[msgId]) cinematicRef.current[msgId] = [];
     cinematicRef.current[msgId].push(Date.now());
     const recent = cinematicRef.current[msgId].filter(t => Date.now() - t < 10000);
@@ -730,324 +931,257 @@ export default function Chat() {
     clearTimeout(typingTimerRef.current);
     typingTimerRef.current = setTimeout(() => socket.emit('stop typing', { sender }), 1500);
   };
-
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
     if (e.key === 'Escape') setImagePreview(null);
   };
-
   const handleFileInput = (e) => {
     const f = e.target.files?.[0]; if (!f) return;
     const r = new FileReader();
     r.onload = ev => setImagePreview(ev.target.result);
-    r.readAsDataURL(f);
-    e.target.value = '';
-  };
-
-  // ── Status update ─────────────────────────────────────────────────────────
-  const updateStatus = (s) => {
-    setMyStatus(s);
-    setShowStatus(false);
-    socket.emit('status', { status: s });
-  };
-
-  // ── Vibe drop ─────────────────────────────────────────────────────────────
-  const handleVibeDrop = (url) => {
-    socket.emit('vibe drop', { url, sender });
+    r.readAsDataURL(f); e.target.value = '';
   };
 
   const typingLabel = typingUsers.length === 1
     ? `${typingUsers[0]} is typing…`
     : typingUsers.length > 1 ? `${typingUsers.slice(0,2).join(' & ')} are typing…` : '';
 
-  const statusObj = STATUSES.find(s => s.value === myStatus) || STATUSES[0];
+  const sidebarContent = (
+    <Box sx={{ width: SIDEBAR_W, height: '100%' }}>
+      <SidebarContent
+        sender={sender} myStatus={myStatus}
+        onStatusChange={(s) => { setMyStatus(s); socket.emit('status', { status: s }); }}
+        onlineUsers={onlineUsers} currentRoom={currentRoom} roomDisplayName={roomDisplay}
+        onOpenRooms={() => setRoomsOpen(true)} onOpenVibe={() => setVibeOpen(true)}
+        vibeCount={vibeItems.length} isSpectator={isSpectator} anonMode={anonMode}
+      />
+    </Box>
+  );
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // RENDER
-  // ─────────────────────────────────────────────────────────────────────────
-  if (!nameReady) return <NameModal onSubmit={joinChat} />;
+  if (!nameReady) return <ThemeProvider theme={theme}><JoinModal onSubmit={joinChat} /></ThemeProvider>;
 
   return (
-    <>
-      <style>{`
-        * { box-sizing: border-box; }
-        html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #0d0e1a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; -webkit-text-size-adjust: 100%; }
-        ::-webkit-scrollbar { width: 3px; }
-        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 99px; }
-        @keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
-        @keyframes pulse  { 0%,100%{opacity:1} 50%{opacity:.4} }
-        @keyframes slideIn { from{opacity:0;transform:translateY(5px)} to{opacity:1;transform:none} }
-        @keyframes cinematicPop { 0%{transform:scale(1)} 50%{transform:scale(1.08)} 100%{transform:scale(1)} }
-        .rainbow-text { background: linear-gradient(90deg,#f97316,#ec4899,#8b5cf6,#06b6d4); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
-        .msg-in { animation: slideIn 0.2s ease both; }
-        .bounce-dot { animation: bounce 1s infinite; }
-      `}</style>
-
-      {/* Confetti */}
+    <ThemeProvider theme={theme}>
       {confetti && <Confetti onDone={() => setConfetti(false)} />}
-
-      {/* Smart notification toast */}
-      {notification && (
-        <div style={{ position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 200, background: '#1a1b2e', border: '1px solid rgba(99,102,241,0.4)', borderRadius: 14, padding: '10px 18px', color: '#fff', fontSize: 13, fontWeight: 600, boxShadow: '0 8px 32px rgba(0,0,0,0.5)', animation: 'slideIn 0.2s ease', whiteSpace: 'nowrap' }}>
-          {notification}
-        </div>
-      )}
 
       {/* Lightbox */}
       {lightboxSrc && (
-        <div onClick={() => setLightboxSrc(null)} style={{ position: 'fixed', inset: 0, zIndex: 90, background: 'rgba(0,0,0,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out' }}>
-          <img src={lightboxSrc} alt="full" style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 16 }} />
-        </div>
+        <Box onClick={() => setLightboxSrc(null)} sx={{ position: 'fixed', inset: 0, zIndex: 9990, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out' }}>
+          <Box component="img" src={lightboxSrc} alt="full" sx={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 3 }} />
+          <IconButton sx={{ position: 'absolute', top: 16, right: 16, color: '#fff', background: 'rgba(255,255,255,0.1)' }} onClick={() => setLightboxSrc(null)}><CloseIcon /></IconButton>
+        </Box>
       )}
 
-      {/* Room modal */}
-      {showRoomModal && (
-        <RoomModal username={sender} onClose={() => setShowRoomModal(false)} onJoin={joinRoom}
-          onCreate={(name, pass) => socket.emit('create room', { name, password: pass, username: sender })} />
-      )}
+      {/* Dialogs */}
+      <RoomsDialog open={roomsOpen} onClose={() => setRoomsOpen(false)} onJoin={joinRoom} username={sender} />
+      <VibeBoardDialog open={vibeOpen} onClose={() => setVibeOpen(false)} items={vibeItems} onDrop={(url) => socket.emit('vibe drop', { url, sender })} />
 
-      {/* Vibe board */}
-      {showVibe && <VibeBoard items={vibeItems} onDrop={handleVibeDrop} onClose={() => setShowVibe(false)} />}
+      {/* Toast */}
+      <Snackbar open={snack.open} autoHideDuration={4000} onClose={() => setSnack(s => ({ ...s, open: false }))}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        TransitionComponent={Fade}>
+        <Alert severity={snack.severity} onClose={() => setSnack(s => ({ ...s, open: false }))} variant="filled" sx={{ borderRadius: 3 }}>{snack.msg}</Alert>
+      </Snackbar>
 
-      {/* Status picker */}
-      {showStatus && (
-        <div onClick={() => setShowStatus(false)} style={{ position: 'fixed', inset: 0, zIndex: 60 }}>
-          <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', left: 12, bottom: 80, background: '#1a1b2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: 8, display: 'flex', flexDirection: 'column', gap: 2, boxShadow: '0 8px 32px rgba(0,0,0,0.5)', minWidth: 160 }}>
-            {STATUSES.map(s => (
-              <button key={s.value} onClick={() => updateStatus(s.value)}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 10, background: myStatus === s.value ? 'rgba(99,102,241,0.2)' : 'transparent', border: 'none', cursor: 'pointer', color: s.color, fontSize: 13, fontWeight: 600, textAlign: 'left' }}>
-                <span>{s.icon}</span><span>{s.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* App Shell */}
+      <Box sx={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0a0b14', height: '100dvh' }}>
+        <Box sx={{ position: 'relative', width: '100%', height: '100%', display: 'flex', overflow: 'hidden', background: '#131420', border: '1px solid rgba(255,255,255,0.05)', ...(!isMobile ? { maxWidth: 1024, height: '94vh', borderRadius: 4, boxShadow: '0 40px 120px rgba(0,0,0,0.8)' } : {}) }}>
 
-      {/* App shell */}
-      <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0d0e1a', height: '100dvh' }}>
-        <div style={{
-          position: 'relative', width: '100%', height: '100%',
-          display: 'flex', overflow: 'hidden',
-          background: '#13141f', border: '1px solid rgba(255,255,255,0.05)',
-          ...(window.matchMedia('(min-width:768px)').matches ? { maxWidth: 960, height: '92vh', borderRadius: 22, boxShadow: '0 32px 80px rgba(0,0,0,0.7)' } : {}),
-        }}>
+          {/* Sidebar — permanent on desktop, drawer on mobile */}
+          {!isMobile ? (
+            <Box sx={{ width: SIDEBAR_W, flexShrink: 0, borderRight: '1px solid rgba(255,255,255,0.06)' }}>{sidebarContent}</Box>
+          ) : (
+            <Drawer anchor="left" open={drawerOpen} onClose={() => setDrawerOpen(false)} PaperProps={{ sx: { width: SIDEBAR_W } }}>
+              {sidebarContent}
+            </Drawer>
+          )}
 
-          {/* Mobile sidebar overlay */}
-          {showSidebar && <div onClick={() => setShowSidebar(false)} style={{ position: 'fixed', inset: 0, zIndex: 30, background: 'rgba(0,0,0,0.6)' }} />}
-
-          {/* ── SIDEBAR ─────────────────────────────────────────────────── */}
-          <aside style={{
-            width: 260, flexShrink: 0, display: 'flex', flexDirection: 'column',
-            background: '#161728', borderRight: '1px solid rgba(255,255,255,0.05)',
-            position: window.matchMedia('(min-width:768px)').matches ? 'relative' : 'absolute',
-            top: 0, bottom: 0, left: 0, zIndex: 40,
-            transform: (window.matchMedia('(min-width:768px)').matches || showSidebar) ? 'translateX(0)' : 'translateX(-100%)',
-            transition: 'transform 0.3s ease',
-          }}>
-            {/* Logo */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 18px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg,#6366f1,#9333ea)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17 }}>👾</div>
-                <div>
-                  <div style={{ color: '#fff', fontWeight: 700, fontSize: 15 }}>GroupChat</div>
-                  <div style={{ color: '#475569', fontSize: 10 }}>#{roomName}</div>
-                </div>
-              </div>
-              <button onClick={() => setShowSidebar(false)} style={{ display: window.matchMedia('(min-width:768px)').matches ? 'none' : 'flex', color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', alignItems: 'center', justifyContent: 'center', width: 28, height: 28 }}>✕</button>
-            </div>
-
-            {/* Room button */}
-            <button onClick={() => setShowRoomModal(true)} style={{ margin: '12px 12px 0', padding: '10px 14px', background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 14, color: '#a5b4fc', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.15s' }}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.2)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'rgba(99,102,241,0.1)'}>
-              🏠 <span>Rooms</span>
-              <span style={{ marginLeft: 'auto', background: 'rgba(99,102,241,0.3)', borderRadius: 6, padding: '1px 6px', fontSize: 10 }}>{currentRoom === 'general' ? 'General' : 'Private'}</span>
-            </button>
-
-            {/* Vibe board button */}
-            <button onClick={() => setShowVibe(true)} style={{ margin: '6px 12px 0', padding: '10px 14px', background: 'rgba(236,72,153,0.08)', border: '1px solid rgba(236,72,153,0.2)', borderRadius: 14, color: '#f472b6', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(236,72,153,0.15)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'rgba(236,72,153,0.08)'}>
-              🎨 <span>Vibe Board</span>
-              {vibeItems.length > 0 && <span style={{ marginLeft: 'auto', background: 'rgba(236,72,153,0.3)', borderRadius: 6, padding: '1px 6px', fontSize: 10 }}>{vibeItems.length}</span>}
-            </button>
-
-            {/* You */}
-            <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', marginTop: 10 }}>
-              <div style={{ fontSize: 10, fontWeight: 600, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>You</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ position: 'relative' }}>
-                  <PixelAvatar name={sender} size={34} ring ghost={isSpectator} />
-                  <button onClick={() => setShowStatus(s => !s)} title="Set status"
-                    style={{ position: 'absolute', bottom: -2, right: -2, width: 14, height: 14, borderRadius: '50%', background: statusObj.color, border: '2px solid #161728', cursor: 'pointer', padding: 0 }} />
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ color: '#fff', fontWeight: 600, fontSize: 13, display: 'flex', alignItems: 'center', gap: 5 }}>
-                    {sender}
-                    {isSpectator && <span style={{ fontSize: 10, background: 'rgba(148,163,184,0.15)', color: '#94a3b8', padding: '1px 6px', borderRadius: 6 }}>👁 Spectator</span>}
-                    {anonMode && <span style={{ fontSize: 10, background: 'rgba(107,114,128,0.2)', color: '#9ca3af', padding: '1px 6px', borderRadius: 6 }}>👻 Anon</span>}
-                  </div>
-                  <div style={{ fontSize: 11, color: statusObj.color }}>{statusObj.icon} {statusObj.label}</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Online users */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                <div style={{ fontSize: 10, fontWeight: 600, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Online — {onlineUsers.filter(u => !u.spectator).length}</div>
-                <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#34d399', animation: 'pulse 2s infinite' }} />
-              </div>
-              {onlineUsers.map((user, i) => {
-                const st = STATUSES.find(s => s.value === user.status) || STATUSES[0];
-                return (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 8px', borderRadius: 12, marginBottom: 2 }}>
-                    <div style={{ position: 'relative' }}>
-                      <PixelAvatar name={user.username} size={30} ghost={user.spectator} />
-                      <div style={{ position: 'absolute', bottom: -1, right: -1, width: 9, height: 9, borderRadius: '50%', background: st.color, border: '2px solid #161728' }} />
-                    </div>
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ color: '#cbd5e1', fontSize: 13, fontWeight: 500, truncate: true }}>{user.username}{user.spectator ? ' 👁' : ''}</div>
-                      <div style={{ fontSize: 10, color: st.color }}>{st.icon} {st.label}</div>
-                    </div>
-                  </div>
-                );
-              })}
-              {onlineUsers.length === 0 && <div style={{ color: '#334155', fontSize: 12, textAlign: 'center', padding: 16 }}>No one else here yet</div>}
-            </div>
-          </aside>
-
-          {/* ── MAIN ──────────────────────────────────────────────────────── */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+          {/* Main */}
+          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
 
             {/* Header */}
-            <header style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', background: '#161728', flexShrink: 0 }}>
-              <button onClick={() => setShowSidebar(true)} style={{ display: window.matchMedia('(min-width:768px)').matches ? 'none' : 'flex', color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 10, flexShrink: 0 }}>
-                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
-              </button>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, px: 2, py: 1.5, borderBottom: '1px solid rgba(255,255,255,0.06)', background: '#12131e', flexShrink: 0 }}>
+              {isMobile && (
+                <Tooltip title="Menu">
+                  <IconButton onClick={() => setDrawerOpen(true)} size="small" sx={{ color: '#64748b' }}>
+                    <Badge badgeContent={unreadCount > 0 ? unreadCount : 0} color="primary" max={99}>
+                      <MenuIcon />
+                    </Badge>
+                  </IconButton>
+                </Tooltip>
+              )}
 
-              <div style={{ width: 36, height: 36, borderRadius: 12, background: '#1e1f2e', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 19, flexShrink: 0 }}>👾</div>
+              <Box sx={{ width: 36, height: 36, borderRadius: 2, background: '#1e1f2e', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>👾</Box>
 
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ color: '#fff', fontWeight: 600, fontSize: 14 }}>#{roomName}</div>
-                <div style={{ fontSize: 11, color: typingLabel ? '#f59e0b' : '#475569', fontStyle: typingLabel ? 'italic' : 'normal', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography variant="body2" sx={{ fontWeight: 700, color: '#e2e8f0', fontSize: 14, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <TagIcon sx={{ fontSize: 14, color: '#475569' }} />{roomDisplay}
+                  {isSpectator && <Chip label="Spectator" size="small" icon={<VisibilityIcon />} sx={{ height: 18, fontSize: 10, ml: 0.5 }} />}
+                </Typography>
+                <Typography variant="caption" sx={{ color: typingLabel ? '#f59e0b' : '#475569', fontStyle: typingLabel ? 'italic' : 'normal', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {typingLabel || `${onlineUsers.length} online`}
-                </div>
-              </div>
+                </Typography>
+              </Box>
 
               {/* Anon toggle */}
               {!isSpectator && (
-                <button onClick={() => setAnonMode(a => !a)} title="Toggle anonymous mode"
-                  style={{ padding: '5px 10px', borderRadius: 10, background: anonMode ? 'rgba(107,114,128,0.25)' : 'rgba(255,255,255,0.05)', border: `1px solid ${anonMode ? 'rgba(107,114,128,0.4)' : 'rgba(255,255,255,0.08)'}`, color: anonMode ? '#d1d5db' : '#475569', fontSize: 12, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
-                  👻
-                </button>
+                <Tooltip title={anonMode ? 'Anonymous ON — click to disable' : 'Send anonymously'}>
+                  <Chip icon={<PersonOffIcon sx={{ fontSize: 14 }} />} label="Anon" size="small" onClick={() => setAnonMode(a => !a)}
+                    sx={{ cursor: 'pointer', height: 26, fontSize: 11, background: anonMode ? 'rgba(107,114,128,0.3)' : 'rgba(255,255,255,0.06)', border: `1px solid ${anonMode ? 'rgba(107,114,128,0.5)' : 'rgba(255,255,255,0.1)'}`, color: anonMode ? '#d1d5db' : '#64748b' }} />
+                </Tooltip>
               )}
 
-              {/* Lang selector */}
-              <select value={userLang} onChange={e => setUserLang(e.target.value)}
-                style={{ padding: '5px 8px', borderRadius: 10, background: '#1e1f2e', border: '1px solid rgba(255,255,255,0.08)', color: '#94a3b8', fontSize: 11, cursor: 'pointer', flexShrink: 0, maxWidth: 80 }}>
-                {LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
-              </select>
+              {/* Language */}
+              <Tooltip title="Auto-translate incoming messages">
+                <FormControl size="small" sx={{ minWidth: 42 }}>
+                  <Select value={userLang} onChange={e => setUserLang(e.target.value)} variant="standard" disableUnderline
+                    IconComponent={() => null}
+                    renderValue={(v) => <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3 }}><TranslateIcon sx={{ fontSize: 14, color: '#64748b' }} /><Typography variant="caption" sx={{ color: '#64748b', fontSize: 11 }}>{v.toUpperCase()}</Typography></Box>}
+                    sx={{ color: '#64748b', '& .MuiSelect-select': { py: 0, pr: '0 !important' }, background: 'transparent' }}>
+                    {LANGUAGES.map(l => <MenuItem key={l.code} value={l.code} sx={{ fontSize: 13 }}>{l.label}</MenuItem>)}
+                  </Select>
+                </FormControl>
+              </Tooltip>
 
-              {/* Connection */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 99, background: connected ? 'rgba(52,211,153,0.1)' : 'rgba(239,68,68,0.1)', color: connected ? '#34d399' : '#f87171', fontSize: 11, fontWeight: 600, flexShrink: 0 }}>
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: connected ? '#34d399' : '#f87171', animation: connected ? 'pulse 2s infinite' : 'none' }} />
-                {connected ? 'Live' : 'Off'}
-              </div>
-            </header>
+              {/* Connection status */}
+              <Tooltip title={connected ? 'Connected' : 'Reconnecting…'}>
+                <Chip
+                  icon={connected ? <WifiIcon sx={{ fontSize: 14 }} /> : <WifiOffIcon sx={{ fontSize: 14 }} />}
+                  label={connected ? 'Live' : 'Off'}
+                  size="small"
+                  sx={{ height: 24, fontSize: 11, background: connected ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)', border: `1px solid ${connected ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`, color: connected ? '#22c55e' : '#ef4444' }}
+                />
+              </Tooltip>
+            </Box>
 
             {/* Spectator banner */}
             {isSpectator && (
-              <div style={{ background: 'rgba(148,163,184,0.08)', borderBottom: '1px solid rgba(148,163,184,0.1)', padding: '8px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 12 }}>
-                👁 You are in Spectator Mode — invisible to others, read-only
-              </div>
+              <Box sx={{ background: 'rgba(148,163,184,0.06)', borderBottom: '1px solid rgba(148,163,184,0.1)', py: 0.75, textAlign: 'center' }}>
+                <Typography variant="caption" sx={{ color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                  <VisibilityIcon sx={{ fontSize: 14 }} /> You are in Spectator Mode — invisible to others, read-only
+                </Typography>
+              </Box>
             )}
 
             {/* Messages */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '16px', WebkitOverflowScrolling: 'touch' }}>
+            <Box ref={messagesBoxRef} onScroll={handleScroll} sx={{ flex: 1, overflowY: 'auto', px: { xs: 1.5, sm: 2 }, py: 2, WebkitOverflowScrolling: 'touch' }}>
               {messages.length === 0 && (
-                <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, textAlign: 'center', userSelect: 'none' }}>
-                  <div style={{ fontSize: 48, opacity: 0.25 }}>👾</div>
-                  <div style={{ color: '#475569', fontSize: 14 }}>No messages yet — say hello!</div>
-                  <div style={{ color: '#334155', fontSize: 12 }}>Hover a message to react · 5 reactions = 🎉 cinematic moment</div>
-                  <div style={{ color: '#334155', fontSize: 12 }}>👻 Anon mode · 🌐 Auto-translate · 🏠 Private rooms</div>
-                </div>
+                <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, textAlign: 'center', userSelect: 'none' }}>
+                  <Typography sx={{ fontSize: 48, opacity: 0.2 }}>👾</Typography>
+                  <Typography variant="body2" sx={{ color: '#475569' }}>No messages yet — say hello!</Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 1 }}>
+                    {['Hover to react 😊','5 reactions = 🎉','👻 Anon mode','🏠 Private rooms','🎨 Vibe Board'].map(t => (
+                      <Chip key={t} label={t} size="small" sx={{ fontSize: 11, background: 'rgba(255,255,255,0.04)', color: '#475569', border: '1px solid rgba(255,255,255,0.08)' }} />
+                    ))}
+                  </Box>
+                </Box>
               )}
 
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column' }}>
                 {messages.map((msg, idx) => {
-                  const isMe    = msg.sender === sender || (msg.isAnon && anonMode && msg.senderReal === sender);
-                  const prev    = messages[idx - 1];
-                  const showAv  = !isMe && msg.sender !== prev?.sender;
-                  const gap     = idx > 0 && msg.sender === prev?.sender ? 2 : 12;
+                  const isMe   = msg.sender === sender;
+                  const prev   = messages[idx - 1];
+                  const showAv = !isMe && msg.sender !== prev?.sender;
+                  const gap    = idx > 0 && msg.sender === prev?.sender ? 0.5 : 2;
                   return (
-                    <div key={msg.id || idx} className="msg-in" style={{ marginTop: gap }}>
-                      <MessageBubble
-                        msg={msg} isMe={isMe}
-                        showAvatar={showAv} showName={showAv && !isMe}
-                        onReact={handleReact} onImageClick={setLightboxSrc}
-                        myUsername={sender} isSpectator={isSpectator}
-                        cinematicMsgId={cinematicId}
-                      />
-                    </div>
+                    <Box key={msg.id || idx} sx={{ mt: gap }}>
+                      <MessageBubble msg={msg} isMe={isMe} showAvatar={showAv} showName={showAv && !isMe}
+                        onReact={handleReact} myUsername={sender} isSpectator={isSpectator} cinematicMsgId={cinematicId} />
+                    </Box>
                   );
                 })}
 
-                {/* Typing */}
+                {/* Typing indicator */}
                 {typingLabel && (
-                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, marginTop: 12 }}>
-                    <div style={{ width: 30, flexShrink: 0 }} />
-                    <div style={{ background: '#1e1f2e', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 18, borderBottomLeftRadius: 4, padding: '10px 14px', display: 'flex', gap: 4 }}>
-                      {[0,1,2].map(i => <div key={i} className="bounce-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: '#475569', animationDelay: `${i*150}ms` }} />)}
-                    </div>
-                  </div>
+                  <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 1, mt: 1.5 }}>
+                    <Box sx={{ width: 30, flexShrink: 0 }} />
+                    <Box sx={{ background: '#1e1f2e', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 3, borderBottomLeftRadius: 4, px: 1.75, py: 1.2, display: 'flex', gap: 0.5, alignItems: 'center' }}>
+                      {[0,1,2].map(i => (
+                        <Box key={i} sx={{ width: 6, height: 6, borderRadius: '50%', background: '#475569', animation: 'bounceTyping 1s infinite', animationDelay: `${i*150}ms` }} />
+                      ))}
+                    </Box>
+                  </Box>
                 )}
-              </div>
-              <div ref={messagesEndRef} />
-            </div>
+              </Box>
+              <Box ref={messagesEndRef} />
+            </Box>
+
+            {/* Scroll to bottom button */}
+            {!scrollBottom && unreadCount > 0 && (
+              <Zoom in>
+                <Box sx={{ position: 'absolute', bottom: 90, left: '50%', transform: 'translateX(-50%)', zIndex: 10 }}>
+                  <Chip
+                    label={`${unreadCount} new message${unreadCount > 1 ? 's' : ''} ↓`}
+                    onClick={() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); setUnreadCount(0); }}
+                    icon={<KeyboardArrowDownIcon />}
+                    sx={{ background: '#6366f1', color: '#fff', cursor: 'pointer', fontWeight: 600, boxShadow: '0 4px 16px rgba(99,102,241,0.4)', '&:hover': { background: '#4f46e5' } }}
+                  />
+                </Box>
+              </Zoom>
+            )}
 
             {/* Image preview */}
             {imagePreview && (
-              <div style={{ margin: '0 16px 8px', padding: '10px 12px', background: '#1e1f2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 14, display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-                <img src={imagePreview} alt="preview" style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ color: '#fff', fontSize: 13, fontWeight: 500 }}>Image ready</div>
-                  <div style={{ color: '#475569', fontSize: 11, marginTop: 2 }}>Enter to send · Esc to cancel</div>
-                </div>
-                <button onClick={() => setImagePreview(null)} style={{ color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 8, flexShrink: 0 }}>✕</button>
-              </div>
+              <Box sx={{ mx: 2, mb: 1, p: 1.5, background: '#1e1f2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <Box component="img" src={imagePreview} alt="preview" sx={{ width: 48, height: 48, borderRadius: 1.5, objectFit: 'cover', flexShrink: 0 }} />
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: '#fff' }}>Image ready to send</Typography>
+                  <Typography variant="caption" sx={{ color: '#475569' }}>Enter to send · Esc to cancel</Typography>
+                </Box>
+                <IconButton size="small" onClick={() => setImagePreview(null)} sx={{ color: '#64748b' }}><CloseIcon sx={{ fontSize: 16 }} /></IconButton>
+              </Box>
             )}
 
             {/* Input bar */}
             {!isSpectator && (
-              <div style={{ padding: '8px 16px', paddingBottom: 'calc(10px + env(safe-area-inset-bottom))', background: '#161728', borderTop: '1px solid rgba(255,255,255,0.05)', flexShrink: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#1e1f2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: '6px 8px 6px 14px', transition: 'border-color 0.2s' }}
-                  onFocus={() => {}} >
-                  {/* Attach */}
-                  <label style={{ color: '#475569', cursor: 'pointer', display: 'flex', padding: '6px', borderRadius: 8, flexShrink: 0 }}>
-                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
-                    <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileInput} />
-                  </label>
+              <Box sx={{ px: 2, pt: 1, pb: 'calc(10px + env(safe-area-inset-bottom))', background: '#12131e', borderTop: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
+                {anonMode && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.75 }}>
+                    <PersonOffIcon sx={{ fontSize: 13, color: '#9ca3af' }} />
+                    <Typography variant="caption" sx={{ color: '#9ca3af', fontSize: 11 }}>Sending as Anonymous — others can't see your name</Typography>
+                  </Box>
+                )}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, background: '#1a1b2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 3, px: 1.5, py: 0.75, '&:focus-within': { borderColor: 'rgba(99,102,241,0.5)' }, transition: 'border-color 0.2s' }}>
+                  {/* File attach */}
+                  <Tooltip title="Attach image">
+                    <IconButton component="label" size="small" sx={{ color: '#475569', flexShrink: 0, '&:hover': { color: '#6366f1', background: 'rgba(99,102,241,0.1)' } }}>
+                      <AttachFileIcon sx={{ fontSize: 20 }} />
+                      <input type="file" accept="image/*" hidden onChange={handleFileInput} />
+                    </IconButton>
+                  </Tooltip>
 
-                  <input ref={inputRef} type="text" value={message}
-                    onChange={handleTyping} onKeyDown={handleKeyDown}
-                    placeholder={imagePreview ? 'Image attached…' : anonMode ? '👻 Sending anonymously…' : 'Message the group…'}
+                  <TextField
+                    inputRef={inputRef}
+                    value={message}
+                    onChange={handleTyping}
+                    onKeyDown={handleKeyDown}
+                    placeholder={imagePreview ? 'Image attached…' : anonMode ? '👻 Message as Anonymous…' : 'Message the group…'}
                     disabled={!!imagePreview}
-                    style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: '#fff', fontSize: 16, padding: '4px 0', minWidth: 0 }} />
+                    multiline
+                    maxRows={4}
+                    variant="standard"
+                    fullWidth
+                    InputProps={{ disableUnderline: true, style: { color: '#fff', fontSize: 15 } }}
+                    sx={{ '& .MuiInputBase-input': { color: '#fff', '&::placeholder': { color: '#334155' } } }}
+                  />
 
-                  <button onClick={sendMessage} disabled={!message.trim() && !imagePreview}
-                    style={{ width: 36, height: 36, borderRadius: 12, border: 'none', cursor: (!message.trim() && !imagePreview) ? 'not-allowed' : 'pointer', background: (!message.trim() && !imagePreview) ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg,#6366f1,#9333ea)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s', opacity: (!message.trim() && !imagePreview) ? 0.3 : 1 }}>
-                    <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
-                  </button>
-                </div>
-                <div style={{ textAlign: 'center', fontSize: 10, color: '#1e293b', marginTop: 5, userSelect: 'none' }}>
-                  Hover to react 😊 · 5 reactions = 🎉 · 👻 anon · 🌐 auto-translate
-                </div>
-              </div>
+                  <Tooltip title="Send (Enter)">
+                    <span>
+                      <IconButton onClick={sendMessage} disabled={!message.trim() && !imagePreview}
+                        sx={{ background: (!message.trim() && !imagePreview) ? 'rgba(255,255,255,0.04)' : 'linear-gradient(135deg,#6366f1,#9333ea)', color: '#fff', width: 36, height: 36, borderRadius: 2, flexShrink: 0, '&:hover': { opacity: 0.88 }, '&.Mui-disabled': { opacity: 0.3, color: '#fff' }, transition: 'all 0.15s' }}>
+                        <SendIcon sx={{ fontSize: 18 }} />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                </Box>
+                <Typography variant="caption" sx={{ display: 'block', textAlign: 'center', color: '#1e293b', mt: 0.5, fontSize: 10 }}>
+                  Hover to react · 5 reactions = 🎉 cinematic · Enter to send
+                </Typography>
+              </Box>
             )}
-          </div>
-        </div>
-      </div>
-    </>
+          </Box>
+        </Box>
+      </Box>
+    </ThemeProvider>
   );
 }
