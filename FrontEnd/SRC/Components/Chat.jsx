@@ -71,8 +71,13 @@ import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 import TagIcon from '@mui/icons-material/Tag';
 import DoneAllIcon from '@mui/icons-material/DoneAll';
-import ReplyIcon from '@mui/icons-material/Reply';
-import ZoomInIcon from '@mui/icons-material/ZoomIn';
+import PsychologyIcon from '@mui/icons-material/Psychology';
+import ShieldIcon from '@mui/icons-material/Shield';
+import BlockIcon from '@mui/icons-material/Block';
+import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import GavelIcon from '@mui/icons-material/Gavel';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MUI DARK THEME
@@ -216,31 +221,46 @@ function Confetti({ onDone }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// REACTION PICKER
+// REACTION PICKER — horizontal strip that appears BELOW the bubble
 // ─────────────────────────────────────────────────────────────────────────────
-function ReactionPicker({ onPick, onClose, isMe, anchorRef }) {
+function ReactionPicker({ onPick, onClose, isMe }) {
   const ref = useRef(null);
   useEffect(() => {
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target) && !anchorRef?.current?.contains(e.target)) onClose(); };
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
     document.addEventListener('pointerdown', handler, true);
     return () => document.removeEventListener('pointerdown', handler, true);
   }, [onClose]);
   return (
-    <Fade in><Paper ref={ref} elevation={8} sx={{
-      position: 'absolute', zIndex: 100,
-      bottom: 'calc(100% + 8px)', [isMe ? 'right' : 'left']: 0,
-      background: '#1a1b2e', border: '1px solid rgba(255,255,255,0.12)',
-      borderRadius: 4, p: 0.75, display: 'flex', flexWrap: 'wrap', gap: 0.25,
-      maxWidth: 280, boxShadow: '0 12px 48px rgba(0,0,0,0.7)',
-    }}>
-      {REACTION_EMOJIS.map(emoji => (
-        <IconButton key={emoji} size="small"
-          onPointerDown={(e) => { e.stopPropagation(); onPick(emoji); onClose(); }}
-          sx={{ fontSize: 22, width: 38, height: 38, borderRadius: 2, '&:hover': { background: 'rgba(255,255,255,0.1)', transform: 'scale(1.3)' }, transition: 'transform 0.1s' }}>
-          {emoji}
-        </IconButton>
-      ))}
-    </Paper></Fade>
+    <Fade in>
+      <Paper ref={ref} elevation={8} sx={{
+        display: 'flex', flexDirection: 'row', flexWrap: 'nowrap',
+        gap: 0.25, p: 0.5, mt: 0.5,
+        background: '#1a1b2e',
+        border: '1px solid rgba(255,255,255,0.12)',
+        borderRadius: 3,
+        boxShadow: '0 4px 24px rgba(0,0,0,0.5)',
+        overflowX: 'auto',
+        // Always stays in the flow — never absolute, never floats up
+      }}>
+        {REACTION_EMOJIS.map(emoji => (
+          <IconButton key={emoji} size="small"
+            onPointerDown={(e) => { e.stopPropagation(); onPick(emoji); onClose(); }}
+            sx={{
+              fontSize: 20, width: 36, height: 36, borderRadius: 2, flexShrink: 0,
+              '&:hover': { background: 'rgba(255,255,255,0.1)', transform: 'scale(1.25)' },
+              transition: 'transform 0.1s, background 0.1s',
+            }}>
+            {emoji}
+          </IconButton>
+        ))}
+        <Tooltip title="Close" placement="top">
+          <IconButton size="small" onPointerDown={(e) => { e.stopPropagation(); onClose(); }}
+            sx={{ width: 30, height: 36, borderRadius: 2, color: '#475569', flexShrink: 0, '&:hover': { background: 'rgba(255,255,255,0.06)', color: '#94a3b8' } }}>
+            <CloseIcon sx={{ fontSize: 14 }} />
+          </IconButton>
+        </Tooltip>
+      </Paper>
+    </Fade>
   );
 }
 
@@ -250,68 +270,63 @@ function ReactionPicker({ onPick, onClose, isMe, anchorRef }) {
 function MessageBubble({ msg, isMe, showAvatar, showName, onReact, myUsername, isSpectator, cinematicMsgId }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [hovered, setHovered]       = useState(false);
-  const reactBtnRef = useRef(null);
   const longPressRef = useRef(null);
   const isCinematic = cinematicMsgId === msg.id;
 
   const reactions = Object.entries(msg.reactions || {}).filter(([, u]) => u.length > 0);
   const myReactions = reactions.filter(([, u]) => u.includes(myUsername)).map(([e]) => e);
 
-  // Consequence styling
   const effectSx = msg.effect === 'flip' ? { transform: 'scaleY(-1)', display: 'inline-block' }
     : msg.effect === 'tiny' ? { fontSize: '9px !important' } : {};
   const effectClass = msg.effect === 'rainbow' ? 'rainbow-txt' : '';
 
-  const handleTouchStart = () => { if (!isSpectator) longPressRef.current = setTimeout(() => setPickerOpen(true), 420); };
-  const handleTouchEnd   = () => clearTimeout(longPressRef.current);
+  const handleTouchStart = () => {
+    if (!isSpectator) longPressRef.current = setTimeout(() => setPickerOpen(true), 420);
+  };
+  const handleTouchEnd = () => clearTimeout(longPressRef.current);
 
   return (
     <Box
       className="msg-anim"
       onMouseEnter={() => !isSpectator && setHovered(true)}
       onMouseLeave={() => { setHovered(false); }}
-      sx={{ display: 'flex', alignItems: 'flex-end', gap: 1, flexDirection: isMe ? 'row-reverse' : 'row',
-        className: isCinematic ? 'cinematic' : '',
+      sx={{
+        display: 'flex', alignItems: 'flex-start', gap: 1,
+        flexDirection: isMe ? 'row-reverse' : 'row',
         filter: isCinematic ? 'drop-shadow(0 0 20px #f59e0b)' : 'none',
         transition: 'filter 0.3s', mb: 0.25,
       }}>
 
       {/* Avatar */}
-      <Box sx={{ width: 34, flexShrink: 0 }}>
+      <Box sx={{ width: 34, flexShrink: 0, pt: 0.25 }}>
         {!isMe && showAvatar && <PixelAvatar name={msg.isAnon ? 'Ghost' : msg.sender} size={30} ghost={msg.isAnon} />}
       </Box>
 
-      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start', maxWidth: { xs: '80%', sm: '65%' }, position: 'relative' }}>
+      {/* Column: name + bubble + picker + reactions + time */}
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start', maxWidth: { xs: '80%', sm: '65%' } }}>
+
         {showName && !isMe && (
           <Typography variant="caption" sx={{ fontWeight: 700, mb: 0.4, pl: 0.5, color: accentColor(msg.isAnon ? 'Ghost' : msg.sender) }}>
-            {msg.isAnon ? '👻 Mystery Guest' : msg.sender}
+            {msg.isAnon ? 'Mystery Guest' : msg.sender}
           </Typography>
         )}
 
-        {/* Hover react button */}
-        <Box sx={{ position: 'relative' }}>
+        {/* Bubble + hover react button */}
+        <Box sx={{ position: 'relative', width: '100%', display: 'flex', flexDirection: isMe ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: 0.5 }}>
+
+          {/* React button — shows on hover, sits beside the bubble */}
           {hovered && !pickerOpen && !isSpectator && (
             <Tooltip title="React" placement={isMe ? 'left' : 'right'}>
-              <IconButton ref={reactBtnRef} size="small"
+              <IconButton size="small"
                 onPointerDown={(e) => { e.stopPropagation(); setPickerOpen(true); }}
                 sx={{
-                  position: 'absolute', top: '50%', transform: 'translateY(-50%)',
-                  [isMe ? 'left' : 'right']: -38, zIndex: 20,
-                  width: 30, height: 30, background: '#1a1b2e',
-                  border: '1px solid rgba(255,255,255,0.12)', fontSize: 14,
+                  mt: 0.5, width: 28, height: 28, flexShrink: 0,
+                  background: '#1a1b2e', border: '1px solid rgba(255,255,255,0.12)',
                   '&:hover': { background: '#252638' },
                 }}>
-                <EmojiEmotionsIcon sx={{ fontSize: 16, color: '#94a3b8' }} />
+                <EmojiEmotionsIcon sx={{ fontSize: 15, color: '#94a3b8' }} />
               </IconButton>
             </Tooltip>
-          )}
-
-          {pickerOpen && (
-            <ReactionPicker
-              onPick={(e) => { onReact(msg.id, e); }}
-              onClose={() => { setPickerOpen(false); setHovered(false); }}
-              isMe={isMe} anchorRef={reactBtnRef}
-            />
           )}
 
           {/* Bubble */}
@@ -338,20 +353,34 @@ function MessageBubble({ msg, isMe, showAvatar, showName, onReact, myUsername, i
             )}
             <Box component="span" className={effectClass} sx={effectSx}>{msg.message}</Box>
             {msg.translate && (
-              <Typography variant="caption" sx={{ display: 'block', mt: 0.5, opacity: 0.45, fontStyle: 'italic' }}>
-                🌐 {msg.translate}
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4, mt: 0.5 }}>
+                <TranslateIcon sx={{ fontSize: 11, opacity: 0.4 }} />
+                <Typography variant="caption" sx={{ opacity: 0.45, fontStyle: 'italic' }}>
+                  {msg.translate}
+                </Typography>
+              </Box>
             )}
             {msg.image && (
               <Box component="img" src={msg.image} alt="shared"
-                onClick={() => {}} sx={{ maxWidth: 220, borderRadius: 2, mt: 1, display: 'block', cursor: 'zoom-in', '&:hover': { opacity: 0.9 } }} />
+                sx={{ maxWidth: 220, borderRadius: 2, mt: 1, display: 'block', cursor: 'zoom-in', '&:hover': { opacity: 0.9 } }} />
             )}
           </Box>
         </Box>
 
-        {/* Reaction chips */}
+        {/* Reaction picker — BELOW the bubble, inline in flow, always horizontal row */}
+        {pickerOpen && (
+          <Box sx={{ width: '100%', mt: 0.25 }}>
+            <ReactionPicker
+              onPick={(e) => { onReact(msg.id, e); setPickerOpen(false); setHovered(false); }}
+              onClose={() => { setPickerOpen(false); setHovered(false); }}
+              isMe={isMe}
+            />
+          </Box>
+        )}
+
+        {/* Reaction chips — horizontal row below bubble */}
         {reactions.length > 0 && (
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.4, mt: 0.6, justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
+          <Box sx={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: 0.4, mt: 0.5, justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
             {reactions.map(([emoji, users]) => (
               <Chip key={emoji}
                 label={`${emoji} ${users.length}`}
@@ -490,10 +519,10 @@ function RoomsDialog({ open, onClose, onJoin, onCreate, username }) {
         <IconButton onClick={onClose} size="small" sx={{ color: '#64748b' }}><CloseIcon /></IconButton>
       </DialogTitle>
       <DialogContent sx={{ pt: 0 }}>
-        <Tabs value={tab} onChange={(_, v) => { setTab(v); setCreated(null); }} sx={{ mb: 2, '& .MuiTab-root': { color: '#64748b', fontSize: 13 }, '& .Mui-selected': { color: '#a5b4fc' }, '& .MuiTabs-indicator': { background: '#6366f1' } }}>
-          <Tab label="🔑 Join Room" />
-          <Tab label="✨ Create" />
-          <Tab label="🌍 Browse" />
+        <Tabs value={tab} onChange={(_, v) => { setTab(v); setCreated(null); }} sx={{ mb: 2, '& .MuiTab-root': { color: '#64748b', fontSize: 13, minWidth: 0 }, '& .Mui-selected': { color: '#a5b4fc' }, '& .MuiTabs-indicator': { background: '#6366f1' } }}>
+          <Tab icon={<LockIcon sx={{ fontSize: 16 }} />} iconPosition="start" label="Join" />
+          <Tab icon={<AddIcon sx={{ fontSize: 16 }} />} iconPosition="start" label="Create" />
+          <Tab icon={<PublicIcon sx={{ fontSize: 16 }} />} iconPosition="start" label="Browse" />
         </Tabs>
 
         {/* Join Tab */}
@@ -613,10 +642,196 @@ function VibeBoardDialog({ open, onClose, items, onDrop }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SIDEBAR CONTENT
+// CONTENT MODERATION — client-side pre-send filter + Claude API verification
 // ─────────────────────────────────────────────────────────────────────────────
+const BAD_WORD_PATTERNS = [
+  /\b(fuck|shit|ass|bitch|cunt|dick|pussy|cock|nigger|faggot|retard)\b/gi,
+  /\b(kill\s+your?self|kys|go\s+die)\b/gi,
+];
+const ILLEGAL_PATTERNS = [
+  /\b(buy|sell|get)\s+(drugs?|meth|cocaine|heroin|weed|marijuana)\b/gi,
+  /\b(hack|ddos|phish|exploit|malware|ransomware)\b/gi,
+  /\b(cp|child\s+porn|csam)\b/gi,
+];
+const SEXUAL_PATTERNS = [
+  /\b(sex|porn|nude|naked|xxx|onlyfans|nsfw)\b/gi,
+];
+
+function moderateMessage(text) {
+  for (const p of BAD_WORD_PATTERNS) { if (p.test(text)) return { blocked: true, reason: 'profanity', label: 'Hate speech or profanity is not allowed' }; }
+  for (const p of ILLEGAL_PATTERNS) { if (p.test(text)) return { blocked: true, reason: 'illegal', label: 'Discussion of illegal activities is not allowed' }; }
+  for (const p of SEXUAL_PATTERNS) { if (p.test(text)) return { blocked: true, reason: 'sexual', label: 'Sexual content is not allowed in this space' }; }
+  return { blocked: false };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ROOM BRAIN — AI-powered live chat summary using Claude API
+// ─────────────────────────────────────────────────────────────────────────────
+function RoomBrain({ messages, isOpen, onClose }) {
+  const [summary,   setSummary]   = useState('');
+  const [loading,   setLoading]   = useState(false);
+  const [lastCount, setLastCount] = useState(0);
+  const [topics,    setTopics]    = useState([]);
+  const [mood,      setMood]      = useState('');
+
+  const summarize = useCallback(async () => {
+    const recentMsgs = messages.filter(m => m.message).slice(-40);
+    if (recentMsgs.length < 3) { setSummary('Not enough messages yet — keep chatting!'); return; }
+    if (recentMsgs.length === lastCount) return;
+
+    setLoading(true);
+    const transcript = recentMsgs.map(m => `${m.sender}: ${m.message}`).join('\n');
+
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 1000,
+          messages: [{
+            role: 'user',
+            content: `You are the Room Brain — a friendly AI secretary for a group chat. Analyze this conversation and respond ONLY with a valid JSON object (no markdown, no extra text) with these exact keys:
+{
+  "summary": "2-3 sentence casual summary of what the group has been talking about",
+  "topics": ["topic1", "topic2", "topic3"],
+  "mood": "one word: hype / chill / serious / funny / mixed",
+  "highlight": "the most interesting or funny moment in one sentence"
+}
+
+Chat transcript:
+${transcript}`
+          }]
+        })
+      });
+      const data = await res.json();
+      const text = data.content?.[0]?.text || '';
+      const clean = text.replace(/```json|```/g, '').trim();
+      const parsed = JSON.parse(clean);
+      setSummary(parsed.summary || '');
+      setTopics(parsed.topics || []);
+      setMood(parsed.mood || '');
+      setLastCount(recentMsgs.length);
+    } catch (e) {
+      setSummary('Could not generate summary right now. Try again!');
+    } finally {
+      setLoading(false);
+    }
+  }, [messages, lastCount]);
+
+  useEffect(() => { if (isOpen) summarize(); }, [isOpen]);
+
+  const moodColor = { hype: '#f97316', chill: '#06b6d4', serious: '#6366f1', funny: '#10b981', mixed: '#f59e0b' };
+  const col = moodColor[mood] || '#6366f1';
+
+  return (
+    <Drawer anchor="right" open={isOpen} onClose={onClose}
+      PaperProps={{ sx: { width: { xs: '85vw', sm: 320 }, background: '#12131e', borderLeft: '1px solid rgba(255,255,255,0.07)' } }}>
+      <Box sx={{ p: 2.5, height: '100%', display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {/* Header */}
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <PsychologyIcon sx={{ color: '#6366f1', fontSize: 22 }} />
+            <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#fff' }}>Room Brain</Typography>
+          </Box>
+          <IconButton size="small" onClick={onClose} sx={{ color: '#64748b' }}><CloseIcon /></IconButton>
+        </Box>
+
+        <Typography variant="caption" sx={{ color: '#475569', mt: -1 }}>
+          AI-powered live summary of your conversation
+        </Typography>
+
+        {/* Mood */}
+        {mood && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1.5, background: `${col}15`, border: `1px solid ${col}30`, borderRadius: 2 }}>
+            <AutoFixHighIcon sx={{ color: col, fontSize: 18 }} />
+            <Box>
+              <Typography variant="caption" sx={{ color: '#64748b', display: 'block', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Room Mood</Typography>
+              <Typography variant="body2" sx={{ color: col, fontWeight: 700, textTransform: 'capitalize' }}>{mood}</Typography>
+            </Box>
+          </Box>
+        )}
+
+        {/* Summary */}
+        <Box sx={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 2.5, p: 2 }}>
+          <Typography variant="caption" sx={{ color: '#475569', display: 'flex', alignItems: 'center', gap: 0.5, mb: 1, textTransform: 'uppercase', fontSize: 10, letterSpacing: '0.08em', fontWeight: 700 }}>
+            <PsychologyIcon sx={{ fontSize: 12 }} /> What's happening
+          </Typography>
+          {loading ? (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 1 }}>
+              <CircularProgress size={16} sx={{ color: '#6366f1' }} />
+              <Typography variant="caption" sx={{ color: '#475569' }}>Analyzing conversation…</Typography>
+            </Box>
+          ) : (
+            <Typography variant="body2" sx={{ color: '#cbd5e1', lineHeight: 1.6, fontSize: 13 }}>
+              {summary || 'Click refresh to generate a summary'}
+            </Typography>
+          )}
+        </Box>
+
+        {/* Topics */}
+        {topics.length > 0 && (
+          <Box>
+            <Typography variant="caption" sx={{ color: '#475569', display: 'block', mb: 1, textTransform: 'uppercase', fontSize: 10, letterSpacing: '0.08em', fontWeight: 700 }}>Hot Topics</Typography>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+              {topics.map(t => (
+                <Chip key={t} label={t} size="small" sx={{ background: 'rgba(99,102,241,0.15)', color: '#a5b4fc', border: '1px solid rgba(99,102,241,0.25)', fontSize: 12, height: 26 }} />
+              ))}
+            </Box>
+          </Box>
+        )}
+
+        {/* Stats */}
+        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
+          {[
+            { label: 'Messages', value: messages.filter(m => m.message).length },
+            { label: 'Active Users', value: new Set(messages.map(m => m.sender)).size },
+            { label: 'Reactions', value: messages.reduce((a, m) => a + Object.values(m.reactions || {}).reduce((b, u) => b + u.length, 0), 0) },
+            { label: 'Anonymous', value: messages.filter(m => m.isAnon).length },
+          ].map(s => (
+            <Box key={s.label} sx={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 2, p: 1.5, textAlign: 'center' }}>
+              <Typography variant="h6" sx={{ color: '#6366f1', fontWeight: 800, lineHeight: 1 }}>{s.value}</Typography>
+              <Typography variant="caption" sx={{ color: '#475569', fontSize: 10 }}>{s.label}</Typography>
+            </Box>
+          ))}
+        </Box>
+
+        {/* Refresh */}
+        <Box component="button" onClick={summarize} disabled={loading}
+          sx={{ mt: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, py: 1.3, borderRadius: 2.5, background: loading ? 'rgba(255,255,255,0.04)' : 'linear-gradient(135deg,#6366f1,#9333ea)', color: '#fff', fontWeight: 700, fontSize: 13, border: 'none', cursor: loading ? 'not-allowed' : 'pointer', transition: 'all 0.15s' }}>
+          <RefreshIcon sx={{ fontSize: 18 }} /> Refresh Summary
+        </Box>
+      </Box>
+    </Drawer>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MODERATION BLOCKED DIALOG
+// ─────────────────────────────────────────────────────────────────────────────
+function ModerationBlock({ reason, label, onClose }) {
+  const icons = { profanity: <GavelIcon sx={{ fontSize: 40, color: '#f87171' }} />, illegal: <BlockIcon sx={{ fontSize: 40, color: '#f97316' }} />, sexual: <ShieldIcon sx={{ fontSize: 40, color: '#f59e0b' }} /> };
+  return (
+    <Dialog open onClose={onClose} maxWidth="xs" fullWidth>
+      <DialogContent sx={{ textAlign: 'center', py: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+        {icons[reason] || <WarningAmberIcon sx={{ fontSize: 40, color: '#f87171' }} />}
+        <Typography variant="h6" sx={{ fontWeight: 700, color: '#fff' }}>Message Blocked</Typography>
+        <Typography variant="body2" sx={{ color: '#94a3b8' }}>{label}</Typography>
+        <Box sx={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 2, p: 1.5, width: '100%' }}>
+          <Typography variant="caption" sx={{ color: '#f87171', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+            <ShieldIcon sx={{ fontSize: 13 }} /> This space is safe and family-friendly
+          </Typography>
+        </Box>
+        <Box component="button" onClick={onClose}
+          sx={{ px: 3, py: 1.2, borderRadius: 2, background: 'rgba(255,255,255,0.06)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>
+          Edit Message
+        </Box>
+      </DialogContent>
+    </Dialog>
+  );
+}
 const SIDEBAR_W = 260;
-function SidebarContent({ sender, myStatus, onStatusChange, onlineUsers, currentRoom, roomDisplayName, onOpenRooms, onOpenVibe, vibeCount, isSpectator, anonMode }) {
+function SidebarContent({ sender, myStatus, onStatusChange, onlineUsers, currentRoom, roomDisplayName, onOpenRooms, isSpectator, anonMode }) {
   const stObj = STATUSES.find(s => s.value === myStatus) || STATUSES[0];
   const [showStatusPicker, setShowStatusPicker] = useState(false);
 
@@ -634,16 +849,11 @@ function SidebarContent({ sender, myStatus, onStatusChange, onlineUsers, current
       </Box>
 
       {/* Quick actions */}
-      <Box sx={{ px: 1.5, pt: 1.5, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+      <Box sx={{ px: 1.5, pt: 1.5 }}>
         <Box component="button" onClick={onOpenRooms}
-          sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 1.1, borderRadius: 2.5, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', color: '#a5b4fc', cursor: 'pointer', fontWeight: 600, fontSize: 13, transition: 'all 0.15s', '&:hover': { background: 'rgba(99,102,241,0.2)' } }}>
+          sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 1.1, borderRadius: 2.5, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', color: '#a5b4fc', cursor: 'pointer', fontWeight: 600, fontSize: 13, transition: 'all 0.15s', width: '100%', '&:hover': { background: 'rgba(99,102,241,0.2)' } }}>
           <MeetingRoomIcon sx={{ fontSize: 18 }} /> Rooms
           <Chip label={currentRoom === 'general' ? 'General' : 'Private'} size="small" sx={{ ml: 'auto', height: 20, fontSize: 10, background: 'rgba(99,102,241,0.25)', color: '#a5b4fc' }} />
-        </Box>
-        <Box component="button" onClick={onOpenVibe}
-          sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 1.1, borderRadius: 2.5, background: 'rgba(236,72,153,0.08)', border: '1px solid rgba(236,72,153,0.18)', color: '#f472b6', cursor: 'pointer', fontWeight: 600, fontSize: 13, transition: 'all 0.15s', '&:hover': { background: 'rgba(236,72,153,0.16)' } }}>
-          <PaletteIcon sx={{ fontSize: 18 }} /> Vibe Board
-          {vibeCount > 0 && <Chip label={vibeCount} size="small" sx={{ ml: 'auto', height: 20, fontSize: 10, background: 'rgba(236,72,153,0.25)', color: '#f472b6' }} />}
         </Box>
       </Box>
 
@@ -707,7 +917,8 @@ function SidebarContent({ sender, myStatus, onStatusChange, onlineUsers, current
 // MAIN CHAT COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
 export default function Chat() {
-  const isMobile = useMediaQuery('(max-width:767px)');
+  // ── useMediaQuery replaces window.matchMedia (safe for iOS re-renders) ───
+  const isMobile = useMediaQuery('(max-width:767px)', { noSsr: true });
 
   const [sender,       setSender]       = useState('');
   const [userLang,     setUserLang]     = useState('en');
@@ -733,6 +944,9 @@ export default function Chat() {
   const [snack,        setSnack]        = useState({ open: false, msg: '', severity: 'info' });
   const [unreadCount,  setUnreadCount]  = useState(0);
   const [scrollBottom, setScrollBottom] = useState(true);
+  // New features
+  const [brainOpen,    setBrainOpen]    = useState(false);
+  const [modBlock,     setModBlock]     = useState(null); // { reason, label }
 
   const messagesEndRef  = useRef(null);
   const inputRef        = useRef(null);
@@ -886,6 +1100,13 @@ export default function Chat() {
     const text = message.trim();
     if (!text) return;
 
+    // ── Content moderation (client-side fast check) ──────────────────────
+    const mod = moderateMessage(text);
+    if (mod.blocked) {
+      setModBlock({ reason: mod.reason, label: mod.label });
+      return;
+    }
+
     let effect = null;
     let effectLabel = null;
     for (const rule of CONSEQUENCE_RULES) {
@@ -952,8 +1173,8 @@ export default function Chat() {
         sender={sender} myStatus={myStatus}
         onStatusChange={(s) => { setMyStatus(s); socket.emit('status', { status: s }); }}
         onlineUsers={onlineUsers} currentRoom={currentRoom} roomDisplayName={roomDisplay}
-        onOpenRooms={() => setRoomsOpen(true)} onOpenVibe={() => setVibeOpen(true)}
-        vibeCount={vibeItems.length} isSpectator={isSpectator} anonMode={anonMode}
+        onOpenRooms={() => setRoomsOpen(true)}
+        isSpectator={isSpectator} anonMode={anonMode}
       />
     </Box>
   );
@@ -975,6 +1196,8 @@ export default function Chat() {
       {/* Dialogs */}
       <RoomsDialog open={roomsOpen} onClose={() => setRoomsOpen(false)} onJoin={joinRoom} username={sender} />
       <VibeBoardDialog open={vibeOpen} onClose={() => setVibeOpen(false)} items={vibeItems} onDrop={(url) => socket.emit('vibe drop', { url, sender })} />
+      <RoomBrain messages={messages} isOpen={brainOpen} onClose={() => setBrainOpen(false)} />
+      {modBlock && <ModerationBlock reason={modBlock.reason} label={modBlock.label} onClose={() => setModBlock(null)} />}
 
       {/* Toast */}
       <Snackbar open={snack.open} autoHideDuration={4000} onClose={() => setSnack(s => ({ ...s, open: false }))}
@@ -984,8 +1207,21 @@ export default function Chat() {
       </Snackbar>
 
       {/* App Shell */}
-      <Box sx={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0a0b14', height: '100dvh' }}>
-        <Box sx={{ position: 'relative', width: '100%', height: '100%', display: 'flex', overflow: 'hidden', background: '#131420', border: '1px solid rgba(255,255,255,0.05)', ...(!isMobile ? { maxWidth: 1024, height: '94vh', borderRadius: 4, boxShadow: '0 40px 120px rgba(0,0,0,0.8)' } : {}) }}>
+      <Box sx={{
+        position: 'fixed', inset: 0, display: 'flex', alignItems: 'center',
+        justifyContent: 'center', background: '#0a0b14',
+        // dvh shrinks when iOS keyboard/toolbar appears — never use 100vh
+        height: '100dvh',
+      }}>
+        <Box sx={{
+          position: 'relative', width: '100%', height: '100%',
+          display: 'flex', overflow: 'hidden',
+          background: '#131420', border: '1px solid rgba(255,255,255,0.05)',
+          ...(!isMobile ? {
+            maxWidth: 1024, height: '94vh',
+            borderRadius: 4, boxShadow: '0 40px 120px rgba(0,0,0,0.8)',
+          } : {}),
+        }}>
 
           {/* Sidebar — permanent on desktop, drawer on mobile */}
           {!isMobile ? (
@@ -1030,6 +1266,14 @@ export default function Chat() {
                     sx={{ cursor: 'pointer', height: 26, fontSize: 11, background: anonMode ? 'rgba(107,114,128,0.3)' : 'rgba(255,255,255,0.06)', border: `1px solid ${anonMode ? 'rgba(107,114,128,0.5)' : 'rgba(255,255,255,0.1)'}`, color: anonMode ? '#d1d5db' : '#64748b' }} />
                 </Tooltip>
               )}
+
+              {/* Room Brain */}
+              <Tooltip title="Room Brain — AI summary">
+                <IconButton size="small" onClick={() => setBrainOpen(true)}
+                  sx={{ color: '#6366f1', background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 1.5, width: 32, height: 32, '&:hover': { background: 'rgba(99,102,241,0.2)' } }}>
+                  <PsychologyIcon sx={{ fontSize: 18 }} />
+                </IconButton>
+              </Tooltip>
 
               {/* Language */}
               <Tooltip title="Auto-translate incoming messages">
