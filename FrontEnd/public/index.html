@@ -12,32 +12,60 @@
       *, *::before, *::after {
         box-sizing: border-box;
         -webkit-tap-highlight-color: transparent;
+        -webkit-touch-callout: none;
       }
-      /* ── CRITICAL iOS FIX ──
-         Never use position:fixed on body — it breaks when keyboard opens.
-         Use height on the root div instead. */
+
+      /*
+       * iOS Safari viewport fix — the ONLY approach that works reliably:
+       * 1. html/body get 100% height (fills the viewport)
+       * 2. NO position:fixed on body (breaks when keyboard opens)
+       * 3. The app root uses an absolute inset:0 so it always fills exactly
+       *    the available space, shrinking when the iOS keyboard appears
+       */
       html {
         height: 100%;
-        height: -webkit-fill-available;
         overflow: hidden;
+        background: #0a0b14;
         -webkit-text-size-adjust: 100%;
+        text-size-adjust: 100%;
       }
+
       body {
-        margin: 0; padding: 0;
         height: 100%;
-        height: -webkit-fill-available;
+        margin: 0;
+        padding: 0;
         overflow: hidden;
         background: #0a0b14;
       }
+
       #emp-Data {
-        width: 100%;
-        /* dvh: shrinks when iOS toolbar appears/hides */
-        height: 100dvh;
-        min-height: -webkit-fill-available;
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
         overflow: hidden;
       }
-      /* Prevent iOS input zoom — MUST be 16px+ */
-      input, textarea, select { font-size: 16px !important; }
+
+      /*
+       * iOS keyboard fix: when the keyboard opens on iOS, the visual
+       * viewport shrinks. Using position:absolute on #emp-Data (not fixed)
+       * means it shrinks with the visual viewport correctly.
+       * This is more reliable than 100dvh on older iOS versions.
+       */
+
+      /* Prevent iOS input zoom — font-size must be >= 16px */
+      input, textarea, select {
+        font-size: 16px !important;
+        /* Prevent iOS double-tap zoom on inputs */
+        touch-action: manipulation;
+      }
+
+      /* Prevent rubber-band scroll on the root */
+      body {
+        overscroll-behavior: none;
+        -webkit-overflow-scrolling: auto;
+      }
     </style>
   </head>
   <body>

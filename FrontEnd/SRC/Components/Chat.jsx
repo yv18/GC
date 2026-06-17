@@ -484,7 +484,16 @@ function JoinModal({ onSubmit }) {
   useEffect(() => { setTimeout(() => inputRef.current?.focus(), 100); }, []);
 
   return (
-    <Box sx={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', p: 2 }}>
+    <Box sx={{
+      position: 'absolute', inset: 0, zIndex: 9999,
+      background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(20px)',
+      display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+      overflowY: 'auto',
+      // paddingTop pushes modal down from notch, paddingBottom clears home bar
+      pt: 'max(40px, env(safe-area-inset-top))',
+      pb: 'max(24px, env(safe-area-inset-bottom))',
+      px: 2,
+    }}>
       <Box sx={{ background: '#1a1b2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, p: 4, width: '100%', maxWidth: 360, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, animation: 'popModal 0.25s cubic-bezier(.34,1.56,.64,1) both' }}>
         <Box sx={{ position: 'relative', p: 1.5, background: '#0a0b14', borderRadius: 3, border: '1px solid rgba(255,255,255,0.07)' }}>
           <PixelAvatar name={name.trim() || 'You'} size={88} ring />
@@ -1241,20 +1250,30 @@ export default function Chat() {
         <Alert severity={snack.severity} onClose={() => setSnack(s => ({ ...s, open: false }))} variant="filled" sx={{ borderRadius: 3 }}>{snack.msg}</Alert>
       </Snackbar>
 
-      {/* App Shell */}
+      {/* App Shell — absolute fills the #emp-Data container which shrinks with iOS keyboard */}
       <Box sx={{
-        position: 'fixed', inset: 0, display: 'flex', alignItems: 'center',
-        justifyContent: 'center', background: '#0a0b14',
-        // dvh shrinks when iOS keyboard/toolbar appears — never use 100vh
-        height: '100dvh',
+        position: 'absolute',
+        top: 0, left: 0, right: 0, bottom: 0,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#0a0b14',
+        overflow: 'hidden',
       }}>
         <Box sx={{
-          position: 'relative', width: '100%', height: '100%',
-          display: 'flex', overflow: 'hidden',
-          background: '#131420', border: '1px solid rgba(255,255,255,0.05)',
+          position: 'relative',
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          overflow: 'hidden',
+          background: '#131420',
           ...(!isMobile ? {
-            maxWidth: 1024, height: '94vh',
-            borderRadius: 4, boxShadow: '0 40px 120px rgba(0,0,0,0.8)',
+            maxWidth: 1024,
+            maxHeight: '94vh',
+            height: '94vh',
+            borderRadius: '16px',
+            border: '1px solid rgba(255,255,255,0.07)',
+            boxShadow: '0 40px 120px rgba(0,0,0,0.8)',
           } : {}),
         }}>
 
@@ -1271,65 +1290,126 @@ export default function Chat() {
           <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden', position: 'relative' }}>
 
             {/* Header */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, px: 2, py: 1.5, borderBottom: '1px solid rgba(255,255,255,0.06)', background: '#12131e', flexShrink: 0 }}>
+            <Box sx={{
+              display: 'flex', alignItems: 'center', gap: 1,
+              px: { xs: 1.5, sm: 2 }, py: { xs: 1, sm: 1.5 },
+              borderBottom: '1px solid rgba(255,255,255,0.06)',
+              background: '#12131e',
+              flexShrink: 0,
+              minHeight: { xs: 56, sm: 64 },
+              // Safe area top for notched iPhones
+              paddingTop: { xs: 'max(8px, env(safe-area-inset-top))', sm: '12px' },
+            }}>
+              {/* Hamburger — mobile only */}
               {isMobile && (
-                <Tooltip title="Menu">
-                  <IconButton onClick={() => setDrawerOpen(true)} size="small" sx={{ color: '#64748b' }}>
-                    <Badge badgeContent={unreadCount > 0 ? unreadCount : 0} color="primary" max={99}>
-                      <MenuIcon />
-                    </Badge>
-                  </IconButton>
-                </Tooltip>
+                <IconButton
+                  onClick={() => setDrawerOpen(true)}
+                  size="small"
+                  sx={{ color: '#64748b', flexShrink: 0, p: 0.75 }}
+                >
+                  <Badge badgeContent={unreadCount > 0 ? unreadCount : 0} color="primary" max={99}>
+                    <MenuIcon sx={{ fontSize: 22 }} />
+                  </Badge>
+                </IconButton>
               )}
 
-              <Box sx={{ width: 36, height: 36, borderRadius: 2, background: '#1e1f2e', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>👾</Box>
+              {/* Room icon */}
+              <Box sx={{
+                width: 34, height: 34, borderRadius: 2,
+                background: '#1e1f2e', border: '1px solid rgba(255,255,255,0.08)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 18, flexShrink: 0,
+              }}>👾</Box>
 
+              {/* Room name + subtitle */}
               <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography variant="body2" sx={{ fontWeight: 700, color: '#e2e8f0', fontSize: 14, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  <TagIcon sx={{ fontSize: 14, color: '#475569' }} />{roomDisplay}
-                  {isSpectator && <Chip label="Spectator" size="small" icon={<VisibilityIcon />} sx={{ height: 18, fontSize: 10, ml: 0.5 }} />}
+                <Typography variant="body2" sx={{
+                  fontWeight: 700, color: '#e2e8f0',
+                  fontSize: { xs: 13, sm: 14 },
+                  display: 'flex', alignItems: 'center', gap: 0.5,
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  <TagIcon sx={{ fontSize: 12, color: '#475569', flexShrink: 0 }} />
+                  {roomDisplay}
+                  {isSpectator && (
+                    <Chip label="Spectator" size="small"
+                      sx={{ height: 16, fontSize: 9, ml: 0.5, display: { xs: 'none', sm: 'flex' } }} />
+                  )}
                 </Typography>
-                <Typography variant="caption" sx={{ color: typingLabel ? '#f59e0b' : '#475569', fontStyle: typingLabel ? 'italic' : 'normal', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <Typography variant="caption" sx={{
+                  color: typingLabel ? '#f59e0b' : '#475569',
+                  fontStyle: typingLabel ? 'italic' : 'normal',
+                  display: 'block', fontSize: { xs: 10, sm: 11 },
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
                   {typingLabel || `${onlineUsers.length} online`}
                 </Typography>
               </Box>
 
-              {/* Anon toggle */}
+              {/* Anon toggle — icon only on mobile */}
               {!isSpectator && (
-                <Tooltip title={anonMode ? 'Anonymous ON — click to disable' : 'Send anonymously'}>
-                  <Chip icon={<PersonOffIcon sx={{ fontSize: 14 }} />} label="Anon" size="small" onClick={() => setAnonMode(a => !a)}
-                    sx={{ cursor: 'pointer', height: 26, fontSize: 11, background: anonMode ? 'rgba(107,114,128,0.3)' : 'rgba(255,255,255,0.06)', border: `1px solid ${anonMode ? 'rgba(107,114,128,0.5)' : 'rgba(255,255,255,0.1)'}`, color: anonMode ? '#d1d5db' : '#64748b' }} />
+                <Tooltip title={anonMode ? 'Anonymous ON' : 'Go anonymous'}>
+                  <IconButton
+                    size="small"
+                    onClick={() => setAnonMode(a => !a)}
+                    sx={{
+                      flexShrink: 0,
+                      color: anonMode ? '#d1d5db' : '#475569',
+                      background: anonMode ? 'rgba(107,114,128,0.25)' : 'transparent',
+                      border: `1px solid ${anonMode ? 'rgba(107,114,128,0.4)' : 'rgba(255,255,255,0.08)'}`,
+                      borderRadius: 1.5, width: 30, height: 30,
+                    }}
+                  >
+                    <PersonOffIcon sx={{ fontSize: 16 }} />
+                  </IconButton>
                 </Tooltip>
               )}
 
               {/* Room Brain */}
               <Tooltip title="Room Brain — AI summary">
-                <IconButton size="small" onClick={() => setBrainOpen(true)}
-                  sx={{ color: '#6366f1', background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 1.5, width: 32, height: 32, '&:hover': { background: 'rgba(99,102,241,0.2)' } }}>
-                  <PsychologyIcon sx={{ fontSize: 18 }} />
+                <IconButton
+                  size="small"
+                  onClick={() => setBrainOpen(true)}
+                  sx={{
+                    flexShrink: 0,
+                    color: '#6366f1',
+                    background: 'rgba(99,102,241,0.1)',
+                    border: '1px solid rgba(99,102,241,0.2)',
+                    borderRadius: 1.5, width: 30, height: 30,
+                  }}
+                >
+                  <PsychologyIcon sx={{ fontSize: 16 }} />
                 </IconButton>
               </Tooltip>
 
-              {/* Language */}
-              <Tooltip title="Auto-translate incoming messages">
-                <FormControl size="small" sx={{ minWidth: 42 }}>
-                  <Select value={userLang} onChange={e => setUserLang(e.target.value)} variant="standard" disableUnderline
-                    IconComponent={() => null}
-                    renderValue={(v) => <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3 }}><TranslateIcon sx={{ fontSize: 14, color: '#64748b' }} /><Typography variant="caption" sx={{ color: '#64748b', fontSize: 11 }}>{v.toUpperCase()}</Typography></Box>}
-                    sx={{ color: '#64748b', '& .MuiSelect-select': { py: 0, pr: '0 !important' }, background: 'transparent' }}>
-                    {LANGUAGES.map(l => <MenuItem key={l.code} value={l.code} sx={{ fontSize: 13 }}>{l.label}</MenuItem>)}
-                  </Select>
-                </FormControl>
-              </Tooltip>
+              {/* Language selector — hidden on mobile to save space */}
+              {!isMobile && (
+                <Tooltip title="Auto-translate incoming messages">
+                  <FormControl size="small" sx={{ minWidth: 42, flexShrink: 0 }}>
+                    <Select value={userLang} onChange={e => setUserLang(e.target.value)}
+                      variant="standard" disableUnderline IconComponent={() => null}
+                      renderValue={(v) => (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3 }}>
+                          <TranslateIcon sx={{ fontSize: 14, color: '#64748b' }} />
+                          <Typography variant="caption" sx={{ color: '#64748b', fontSize: 11 }}>{v.toUpperCase()}</Typography>
+                        </Box>
+                      )}
+                      sx={{ color: '#64748b', '& .MuiSelect-select': { py: 0, pr: '0 !important' } }}>
+                      {LANGUAGES.map(l => <MenuItem key={l.code} value={l.code} sx={{ fontSize: 13 }}>{l.label}</MenuItem>)}
+                    </Select>
+                  </FormControl>
+                </Tooltip>
+              )}
 
-              {/* Connection status */}
+              {/* Connection dot */}
               <Tooltip title={connected ? 'Connected' : 'Reconnecting…'}>
-                <Chip
-                  icon={connected ? <WifiIcon sx={{ fontSize: 14 }} /> : <WifiOffIcon sx={{ fontSize: 14 }} />}
-                  label={connected ? 'Live' : 'Off'}
-                  size="small"
-                  sx={{ height: 24, fontSize: 11, background: connected ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)', border: `1px solid ${connected ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`, color: connected ? '#22c55e' : '#ef4444' }}
-                />
+                <Box sx={{
+                  flexShrink: 0,
+                  width: 8, height: 8, borderRadius: '50%',
+                  background: connected ? '#22c55e' : '#ef4444',
+                  animation: connected ? 'pulseDot 2s infinite' : 'none',
+                  ml: 0.5,
+                }} />
               </Tooltip>
             </Box>
 
@@ -1456,49 +1536,100 @@ export default function Chat() {
 
             {/* Input bar */}
             {!isSpectator && (
-              <Box sx={{ px: 2, pt: 1, pb: 'calc(10px + env(safe-area-inset-bottom))', background: '#12131e', borderTop: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
+              <Box sx={{
+                px: { xs: 1.5, sm: 2 },
+                pt: 1,
+                // Safe area inset for iPhone home bar — critical for notched iPhones
+                pb: 'max(10px, env(safe-area-inset-bottom))',
+                background: '#12131e',
+                borderTop: '1px solid rgba(255,255,255,0.06)',
+                flexShrink: 0,
+              }}>
                 {anonMode && (
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.75 }}>
-                    <PersonOffIcon sx={{ fontSize: 13, color: '#9ca3af' }} />
-                    <Typography variant="caption" sx={{ color: '#9ca3af', fontSize: 11 }}>Sending as Anonymous — others can't see your name</Typography>
+                    <PersonOffIcon sx={{ fontSize: 12, color: '#9ca3af' }} />
+                    <Typography variant="caption" sx={{ color: '#9ca3af', fontSize: 10 }}>
+                      Sending as Anonymous
+                    </Typography>
                   </Box>
                 )}
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, background: '#1a1b2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 3, px: 1.5, py: 0.75, '&:focus-within': { borderColor: 'rgba(99,102,241,0.5)' }, transition: 'border-color 0.2s' }}>
-                  {/* File attach */}
-                  <Tooltip title="Attach image">
-                    <IconButton component="label" size="small" sx={{ color: '#475569', flexShrink: 0, '&:hover': { color: '#6366f1', background: 'rgba(99,102,241,0.1)' } }}>
-                      <AttachFileIcon sx={{ fontSize: 20 }} />
-                      <input type="file" accept="image/*" hidden onChange={handleFileInput} />
-                    </IconButton>
-                  </Tooltip>
+                <Box sx={{
+                  display: 'flex', alignItems: 'center', gap: 0.75,
+                  background: '#1a1b2e',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '24px',
+                  px: 1.25, py: 0.5,
+                  '&:focus-within': { borderColor: 'rgba(99,102,241,0.5)' },
+                  transition: 'border-color 0.2s',
+                  // Prevent the entire bar from shrinking on iOS
+                  minHeight: 48,
+                }}>
+                  {/* Attach */}
+                  <IconButton
+                    component="label"
+                    size="small"
+                    sx={{
+                      color: '#475569', flexShrink: 0,
+                      width: 36, height: 36,
+                      '&:hover': { color: '#6366f1' },
+                      // Prevent iOS long-press menu
+                      WebkitUserSelect: 'none',
+                      touchAction: 'manipulation',
+                    }}
+                  >
+                    <AttachFileIcon sx={{ fontSize: 20 }} />
+                    <input type="file" accept="image/*" hidden onChange={handleFileInput} />
+                  </IconButton>
 
                   <TextField
                     inputRef={inputRef}
                     value={message}
                     onChange={handleTyping}
                     onKeyDown={handleKeyDown}
-                    placeholder={imagePreview ? 'Image attached…' : anonMode ? '👻 Message as Anonymous…' : 'Message the group…'}
+                    placeholder={
+                      imagePreview ? 'Image attached…'
+                      : anonMode ? 'Message as Anonymous…'
+                      : 'Message the group…'
+                    }
                     disabled={!!imagePreview}
                     multiline
                     maxRows={4}
                     variant="standard"
                     fullWidth
-                    InputProps={{ disableUnderline: true, style: { color: '#fff', fontSize: 15 } }}
-                    sx={{ '& .MuiInputBase-input': { color: '#fff', '&::placeholder': { color: '#334155' } } }}
+                    InputProps={{
+                      disableUnderline: true,
+                      style: { color: '#fff', fontSize: 16, lineHeight: 1.4 },
+                    }}
+                    sx={{
+                      '& .MuiInputBase-input': {
+                        color: '#fff',
+                        padding: '6px 0',
+                        '&::placeholder': { color: '#475569' },
+                      },
+                    }}
                   />
 
-                  <Tooltip title="Send (Enter)">
-                    <span>
-                      <IconButton onClick={sendMessage} disabled={!message.trim() && !imagePreview}
-                        sx={{ background: (!message.trim() && !imagePreview) ? 'rgba(255,255,255,0.04)' : 'linear-gradient(135deg,#6366f1,#9333ea)', color: '#fff', width: 36, height: 36, borderRadius: 2, flexShrink: 0, '&:hover': { opacity: 0.88 }, '&.Mui-disabled': { opacity: 0.3, color: '#fff' }, transition: 'all 0.15s' }}>
-                        <SendIcon sx={{ fontSize: 18 }} />
-                      </IconButton>
-                    </span>
-                  </Tooltip>
+                  {/* Send */}
+                  <IconButton
+                    onClick={sendMessage}
+                    disabled={!message.trim() && !imagePreview}
+                    sx={{
+                      flexShrink: 0,
+                      width: 36, height: 36,
+                      borderRadius: '50%',
+                      background: (!message.trim() && !imagePreview)
+                        ? 'rgba(255,255,255,0.04)'
+                        : 'linear-gradient(135deg,#6366f1,#9333ea)',
+                      color: '#fff',
+                      '&:hover': { opacity: 0.88 },
+                      '&.Mui-disabled': { opacity: 0.25, color: '#fff' },
+                      transition: 'all 0.15s',
+                      touchAction: 'manipulation',
+                    }}
+                  >
+                    <SendIcon sx={{ fontSize: 18 }} />
+                  </IconButton>
                 </Box>
-                <Typography variant="caption" sx={{ display: 'block', textAlign: 'center', color: '#1e293b', mt: 0.5, fontSize: 10 }}>
-                  Hover to react · 5 reactions = 🎉 cinematic · Enter to send
-                </Typography>
               </Box>
             )}
           </Box>
