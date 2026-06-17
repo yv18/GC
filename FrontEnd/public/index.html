@@ -1,76 +1,1286 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="theme-color" content="#0a0b14" />
-    <title>GroupChat</title>
-    <style>
-      *, *::before, *::after {
-        box-sizing: border-box;
-        -webkit-tap-highlight-color: transparent;
-        -webkit-touch-callout: none;
-      }
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="theme-color" content="#0a0b14"/>
+  <title>GroupChat</title>
 
-      /*
-       * iOS Safari viewport fix — the ONLY approach that works reliably:
-       * 1. html/body get 100% height (fills the viewport)
-       * 2. NO position:fixed on body (breaks when keyboard opens)
-       * 3. The app root uses an absolute inset:0 so it always fills exactly
-       *    the available space, shrinking when the iOS keyboard appears
-       */
-      html {
-        height: 100%;
-        overflow: hidden;
-        background: #0a0b14;
-        -webkit-text-size-adjust: 100%;
-        text-size-adjust: 100%;
-      }
+  <!-- MUI Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
 
-      body {
-        height: 100%;
-        margin: 0;
-        padding: 0;
-        overflow: hidden;
-        background: #0a0b14;
-      }
+  <style>
+    *, *::before, *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html { height: 100%; overflow: hidden; background: #0a0b14; -webkit-text-size-adjust: 100%; }
+    body { height: 100%; margin: 0; padding: 0; overflow: hidden; background: #0a0b14;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+    #root { position: absolute; top: 0; left: 0; right: 0; bottom: 0; overflow: hidden; }
+    input, textarea, select { font-size: 16px !important; touch-action: manipulation; }
+    body { overscroll-behavior: none; }
 
-      #emp-Data {
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        overflow: hidden;
-      }
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
 
-      /*
-       * iOS keyboard fix: when the keyboard opens on iOS, the visual
-       * viewport shrinks. Using position:absolute on #emp-Data (not fixed)
-       * means it shrinks with the visual viewport correctly.
-       * This is more reliable than 100dvh on older iOS versions.
-       */
+    @keyframes msgIn    { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+    @keyframes bounce   { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
+    @keyframes pulse    { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    @keyframes fall     { 0%{transform:translateY(-10px) rotate(0);opacity:1} 100%{transform:translateY(110vh) rotate(720deg);opacity:0} }
+    @keyframes popIn    { from{opacity:0;transform:scale(0.9)} to{opacity:1;transform:scale(1)} }
+    @keyframes rainbow  { 0%{background-position:0%} 100%{background-position:200%} }
 
-      /* Prevent iOS input zoom — font-size must be >= 16px */
-      input, textarea, select {
-        font-size: 16px !important;
-        /* Prevent iOS double-tap zoom on inputs */
-        touch-action: manipulation;
-      }
+    .msg-in { animation: msgIn 0.2s ease both; }
+    .bounce { animation: bounce 1s infinite; }
+    .pulse  { animation: pulse 2s infinite; }
+    .pop    { animation: popIn 0.2s cubic-bezier(.34,1.56,.64,1) both; }
+    .rainbow-txt {
+      background: linear-gradient(90deg,#f97316,#ec4899,#8b5cf6,#06b6d4,#10b981,#f97316);
+      background-size: 200%; -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent; background-clip: text;
+      animation: rainbow 2s linear infinite;
+    }
+  </style>
+</head>
+<body>
+<div id="root"></div>
 
-      /* Prevent rubber-band scroll on the root */
-      body {
-        overscroll-behavior: none;
-        -webkit-overflow-scrolling: auto;
+<!-- Core libraries from CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+
+<script type="text/babel" data-presets="react">
+'use strict';
+
+const { useState, useEffect, useRef, useCallback, useMemo } = React;
+
+// ── Socket ──────────────────────────────────────────────────────────────────
+const socket = io('https://gc-backend-1ksm.onrender.com', {
+  transports: ['websocket', 'polling'],
+  reconnectionAttempts: 10,
+  reconnectionDelay: 1000,
+});
+
+// ── Pixel Avatar ────────────────────────────────────────────────────────────
+function seededRng(seed) {
+  let s = [...(seed||'?')].reduce((a,c)=>(a*31+c.charCodeAt(0))>>>0, 0x12345678);
+  return () => { s^=s<<13; s^=s>>17; s^=s<<5; return (s>>>0)/0xffffffff; };
+}
+const PAL = [
+  ['#6366f1','#818cf8','#c7d2fe','#1e1b4b'],['#ec4899','#f472b6','#fce7f3','#500724'],
+  ['#10b981','#34d399','#d1fae5','#064e3b'],['#f59e0b','#fbbf24','#fef3c7','#451a03'],
+  ['#3b82f6','#60a5fa','#dbeafe','#1e3a8a'],['#8b5cf6','#a78bfa','#ede9fe','#2e1065'],
+  ['#ef4444','#f87171','#fee2e2','#450a0a'],['#14b8a6','#2dd4bf','#ccfbf1','#042f2e'],
+  ['#f97316','#fb923c','#ffedd5','#431407'],['#06b6d4','#22d3ee','#cffafe','#0c4a6e'],
+];
+function buildGrid(name) {
+  const r = seededRng(name); const p = PAL[Math.floor(r()*PAL.length)];
+  const g = [];
+  for (let i=0;i<8;i++){const h=[];for(let j=0;j<4;j++){const v=r();h.push(v<.3?p[3]:v<.6?p[0]:v<.8?p[1]:v<.92?p[2]:null);}g.push([...h,...[...h].reverse()]);}
+  return {g,p};
+}
+function PixelAvatar({name,size=36,ring=false,ghost=false}) {
+  const {g,p} = buildGrid(name||'?');
+  const ref = useRef(null);
+  useEffect(()=>{
+    const c=ref.current; if(!c) return;
+    const ctx=c.getContext('2d'); const cell=c.width/8;
+    ctx.clearRect(0,0,c.width,c.height);
+    ctx.fillStyle=p[3]; ctx.fillRect(0,0,c.width,c.height);
+    g.forEach((row,r)=>row.forEach((col,ci)=>{if(col){ctx.fillStyle=col;ctx.fillRect(ci*cell,r*cell,cell,cell);}}));
+  },[name]);
+  return (
+    <div style={{flexShrink:0,opacity:ghost?0.4:1,filter:ghost?'grayscale(1)':'none'}}>
+      <canvas ref={ref} width={64} height={64} style={{
+        width:size,height:size,borderRadius:6,imageRendering:'pixelated',display:'block',
+        boxShadow:ring?`0 0 0 2px ${p[0]}, 0 0 16px ${p[0]}55`:'none',
+      }}/>
+    </div>
+  );
+}
+function accent(name){const r=seededRng(name||'?');return PAL[Math.floor(r()*PAL.length)][0];}
+
+// ── Constants ────────────────────────────────────────────────────────────────
+const REACTIONS = ['👍','❤️','😂','😮','🔥','😢'];
+const STATUSES = [
+  {v:'online',l:'Online',c:'#22c55e',e:'🟢'},{v:'coding',l:'Coding',c:'#60a5fa',e:'👨‍💻'},
+  {v:'gaming',l:'Gaming',c:'#a78bfa',e:'🎮'},{v:'music',l:'Music',c:'#f472b6',e:'🎵'},
+  {v:'afk',l:'AFK',c:'#94a3b8',e:'😴'},{v:'busy',l:'Busy',c:'#f87171',e:'🔴'},
+];
+const LANGS = [
+  {c:'en',l:'🇺🇸 English'},{c:'es',l:'🇪🇸 Spanish'},{c:'fr',l:'🇫🇷 French'},
+  {c:'de',l:'🇩🇪 German'},{c:'hi',l:'🇮🇳 Hindi'},{c:'ja',l:'🇯🇵 Japanese'},
+  {c:'ar',l:'🇸🇦 Arabic'},{c:'pt',l:'🇧🇷 Portuguese'},
+];
+const CONSEQUENCES = [
+  {t:/\b(damn|shit|fuck)\b/i,e:'flip',msg:'🙃 Flipped!'  },
+  {t:/\b(lol|haha|lmao)\b/i, e:'rainbow',msg:'🌈 Rainbow!'},
+  {t:/spam/i,                 e:'tiny',msg:'🤏 Tiny text!'},
+];
+const BAD_WORDS   = [/\b(fuck|shit|ass|bitch|cunt|dick|pussy|nigger|faggot)\b/gi, /\b(kill\s*your?self|kys)\b/gi];
+const ILLEGAL     = [/\b(buy|sell)\s+(drugs?|meth|cocaine|heroin)\b/gi, /\b(ddos|ransomware|malware)\b/gi];
+const SEXUAL      = [/\b(porn|nude|naked|xxx|nsfw|onlyfans)\b/gi];
+function moderate(text) {
+  for (const p of BAD_WORDS) if(new RegExp(p.source,p.flags).test(text)) return {blocked:true,reason:'profanity',msg:'Hate speech or profanity is not allowed here.'};
+  for (const p of ILLEGAL)   if(new RegExp(p.source,p.flags).test(text)) return {blocked:true,reason:'illegal',msg:'Discussion of illegal activities is not allowed.'};
+  for (const p of SEXUAL)    if(new RegExp(p.source,p.flags).test(text)) return {blocked:true,reason:'sexual',msg:'Sexual content is not allowed in this space.'};
+  return {blocked:false};
+}
+const now = () => new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+let mid = 0;
+const makeId = () => `m${Date.now()}_${mid++}`;
+const formatTime = now;
+
+// ── Confetti ─────────────────────────────────────────────────────────────────
+function Confetti({onDone}) {
+  const pts = useMemo(()=>Array.from({length:60},(_,i)=>({
+    id:i,x:Math.random()*100,
+    col:['#6366f1','#ec4899','#f59e0b','#10b981','#f97316','#8b5cf6'][i%6],
+    sz:6+Math.random()*8,dl:Math.random(),dr:1.8+Math.random()*0.8,
+  })),[]);
+  useEffect(()=>{const t=setTimeout(onDone,4000);return()=>clearTimeout(t);},[]);
+  return (
+    <div style={{position:'fixed',inset:0,pointerEvents:'none',zIndex:9999,overflow:'hidden'}}>
+      {pts.map(p=><div key={p.id} style={{position:'absolute',left:`${p.x}%`,top:-20,width:p.sz,height:p.sz,borderRadius:2,background:p.col,animation:`fall ${p.dr}s ${p.dl}s ease-in forwards`}}/>)}
+    </div>
+  );
+}
+
+// ── Toast ────────────────────────────────────────────────────────────────────
+function Toast({msg,sev,onClose}) {
+  const bg={success:'#10b981',error:'#ef4444',warning:'#f59e0b',info:'#6366f1'}[sev]||'#6366f1';
+  useEffect(()=>{const t=setTimeout(onClose,4000);return()=>clearTimeout(t);},[]);
+  return (
+    <div style={{position:'fixed',top:20,left:'50%',transform:'translateX(-50%)',zIndex:9000,
+      background:bg,color:'#fff',padding:'10px 18px',borderRadius:12,fontWeight:700,
+      fontSize:13,boxShadow:'0 8px 32px rgba(0,0,0,0.5)',whiteSpace:'nowrap',
+      maxWidth:'90vw',overflow:'hidden',textOverflow:'ellipsis',
+      animation:'msgIn .2s ease'}}>
+      {msg}
+    </div>
+  );
+}
+
+// ── Reaction Picker ──────────────────────────────────────────────────────────
+function ReactionPicker({onPick,onClose,isMe}) {
+  const ref = useRef(null);
+  useEffect(()=>{
+    const id=setTimeout(()=>{
+      const h=e=>{if(ref.current&&!ref.current.contains(e.target))onClose();};
+      document.addEventListener('pointerdown',h,true);
+      return()=>document.removeEventListener('pointerdown',h,true);
+    },60);
+    return()=>clearTimeout(id);
+  },[]);
+  return (
+    <div ref={ref} style={{
+      display:'inline-flex',flexDirection:'row',alignItems:'center',
+      gap:2,padding:'5px 8px',marginTop:4,
+      background:'#1e2035',border:'1px solid rgba(255,255,255,0.12)',
+      borderRadius:20,boxShadow:'0 4px 20px rgba(0,0,0,0.5)',
+      alignSelf:isMe?'flex-end':'flex-start',
+    }}>
+      {REACTIONS.map(e=>(
+        <button key={e} onPointerDown={ev=>{ev.stopPropagation();onPick(e);onClose();}}
+          style={{width:36,height:36,fontSize:21,background:'transparent',border:'none',
+            cursor:'pointer',borderRadius:'50%',display:'flex',alignItems:'center',
+            justifyContent:'center',transition:'transform .1s',flexShrink:0}}
+          onMouseEnter={ev=>ev.currentTarget.style.transform='scale(1.35)'}
+          onMouseLeave={ev=>ev.currentTarget.style.transform='scale(1)'}>
+          {e}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ── Message Bubble ───────────────────────────────────────────────────────────
+function Bubble({msg,isMe,showAv,showName,onReact,myName,spectator,cinId}) {
+  const [picker,setPicker] = useState(false);
+  const [hov,setHov]       = useState(false);
+  const lpRef              = useRef(null);
+  const isCin              = cinId===msg.id;
+  const rx                 = Object.entries(msg.reactions||{}).filter(([,u])=>u.length>0);
+  const myRx               = rx.filter(([,u])=>u.includes(myName)).map(([e])=>e);
+
+  let efStyle = {};
+  if(msg.effect==='flip')  efStyle={transform:'scaleY(-1)',display:'inline-block'};
+  if(msg.effect==='tiny')  efStyle={fontSize:9};
+
+  return (
+    <div className="msg-in"
+      onMouseEnter={()=>!spectator&&setHov(true)}
+      onMouseLeave={()=>setHov(false)}
+      style={{
+        display:'flex',alignItems:'flex-start',gap:8,
+        flexDirection:isMe?'row-reverse':'row',
+        filter:isCin?'drop-shadow(0 0 18px #f59e0b)':'none',
+        transition:'filter .3s',marginBottom:2,
+      }}>
+
+      {/* Avatar slot */}
+      <div style={{width:32,flexShrink:0,paddingTop:2}}>
+        {!isMe&&showAv&&<PixelAvatar name={msg.isAnon?'Ghost':msg.sender} size={28} ghost={msg.isAnon}/>}
+      </div>
+
+      {/* Bubble column */}
+      <div style={{display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',maxWidth:'75%'}}>
+
+        {showName&&!isMe&&(
+          <div style={{fontSize:11,fontWeight:700,marginBottom:3,paddingLeft:2,color:accent(msg.isAnon?'Ghost':msg.sender)}}>
+            {msg.isAnon?'👻 Mystery Guest':msg.sender}
+          </div>
+        )}
+
+        {/* Bubble row with react button */}
+        <div style={{display:'flex',alignItems:'flex-start',gap:6,flexDirection:isMe?'row-reverse':'row'}}>
+
+          {/* Hover react button */}
+          {hov&&!picker&&!spectator&&(
+            <button onPointerDown={e=>{e.stopPropagation();setPicker(true);}}
+              style={{width:26,height:26,borderRadius:'50%',background:'#1a1b2e',
+                border:'1px solid rgba(255,255,255,0.14)',cursor:'pointer',
+                display:'flex',alignItems:'center',justifyContent:'center',
+                fontSize:13,flexShrink:0,marginTop:6,
+                boxShadow:'0 2px 8px rgba(0,0,0,0.4)'}}>
+              😊
+            </button>
+          )}
+
+          {/* Bubble */}
+          <div
+            onTouchStart={()=>{if(!spectator)lpRef.current=setTimeout(()=>setPicker(true),420);}}
+            onTouchEnd={()=>clearTimeout(lpRef.current)}
+            onTouchMove={()=>clearTimeout(lpRef.current)}
+            style={{
+              padding:'10px 14px',borderRadius:18,fontSize:14,lineHeight:1.55,
+              wordBreak:'break-word',whiteSpace:'pre-wrap',
+              background:msg.isAnon?'linear-gradient(135deg,#374151,#1f2937)':
+                isMe?'linear-gradient(135deg,#6366f1,#9333ea)':'#1e1f2e',
+              color:'#fff',
+              borderBottomRightRadius:isMe?4:18,
+              borderBottomLeftRadius:isMe?18:4,
+              border:(isMe||msg.isAnon)?'none':'1px solid rgba(255,255,255,0.07)',
+              boxShadow:isMe?'0 2px 14px rgba(99,102,241,0.25)':'none',
+            }}>
+            <span className={msg.effect==='rainbow'?'rainbow-txt':''} style={efStyle}>
+              {msg.message}
+            </span>
+            {msg.translate&&(
+              <div style={{fontSize:11,color:'rgba(255,255,255,0.4)',marginTop:4,fontStyle:'italic'}}>
+                🌐 {msg.translate}
+              </div>
+            )}
+            {msg.image&&(
+              <img src={msg.image} alt="shared"
+                style={{maxWidth:200,borderRadius:10,marginTop:6,display:'block',cursor:'zoom-in'}}/>
+            )}
+          </div>
+        </div>
+
+        {/* Reaction picker — inline below bubble */}
+        {picker&&(
+          <ReactionPicker
+            onPick={e=>{onReact(msg.id,e);setPicker(false);setHov(false);}}
+            onClose={()=>{setPicker(false);setHov(false);}}
+            isMe={isMe}
+          />
+        )}
+
+        {/* Reaction chips */}
+        {rx.length>0&&(
+          <div style={{display:'flex',flexWrap:'wrap',gap:4,marginTop:5,
+            justifyContent:isMe?'flex-end':'flex-start'}}>
+            {rx.map(([e,users])=>(
+              <button key={e} onPointerDown={()=>!spectator&&onReact(msg.id,e)}
+                title={users.join(', ')}
+                style={{display:'flex',alignItems:'center',gap:3,padding:'3px 9px',
+                  borderRadius:99,fontSize:13,cursor:spectator?'default':'pointer',
+                  background:myRx.includes(e)?'rgba(99,102,241,0.28)':'rgba(255,255,255,0.07)',
+                  border:`1px solid ${myRx.includes(e)?'rgba(99,102,241,0.5)':'rgba(255,255,255,0.1)'}`,
+                  color:'#fff',transition:'all .15s',touchAction:'manipulation'}}>
+                {e}<span style={{fontSize:11,fontWeight:700,color:'#94a3b8'}}>{users.length}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Time */}
+        <div style={{display:'flex',alignItems:'center',gap:4,marginTop:3,
+          flexDirection:isMe?'row-reverse':'row',paddingLeft:2}}>
+          <span style={{fontSize:10,color:'rgba(255,255,255,0.22)'}}>{msg.time}</span>
+          {isMe&&<span style={{fontSize:12,color:'#818cf8'}}>✓✓</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Rooms Modal ──────────────────────────────────────────────────────────────
+function RoomsModal({onClose,onJoin,username}) {
+  const [tab,setTab]   = useState('join');
+  const [code,setCode] = useState('');
+  const [pass,setPass] = useState('');
+  const [rname,setRname]=useState('');
+  const [rpass,setRpass]=useState('');
+  const [spec,setSpec] = useState(false);
+  const [created,setCreated]=useState(null);
+  const [copied,setCopied]=useState(false);
+  const [rooms,setRooms]=useState([]);
+
+  useEffect(()=>{
+    socket.emit('list rooms');
+    socket.on('room list',setRooms);
+    socket.on('room created',d=>setCreated(d));
+    return()=>{socket.off('room list');socket.off('room created');};
+  },[]);
+
+  const create=()=>{if(!rname.trim())return;socket.emit('create room',{name:rname.trim(),password:rpass,username});};
+  const copy=()=>{navigator.clipboard?.writeText(created.roomId).catch(()=>{});setCopied(true);setTimeout(()=>setCopied(false),2000);};
+
+  const inputStyle={width:'100%',padding:'12px 14px',background:'rgba(255,255,255,0.05)',
+    border:'1px solid rgba(255,255,255,0.12)',borderRadius:12,color:'#fff',
+    fontSize:16,outline:'none',boxSizing:'border-box'};
+  const btnStyle=(active,col='#6366f1')=>({
+    width:'100%',padding:13,borderRadius:12,fontWeight:700,fontSize:14,border:'none',
+    cursor:active?'pointer':'not-allowed',
+    background:active?`linear-gradient(135deg,${col},${col==='#6366f1'?'#9333ea':'#059669'})`:'rgba(255,255,255,0.06)',
+    color:'#fff',touchAction:'manipulation',
+  });
+
+  return (
+    <div onClick={e=>e.target===e.currentTarget&&onClose()}
+      style={{position:'fixed',inset:0,zIndex:500,background:'rgba(0,0,0,0.85)',
+        backdropFilter:'blur(16px)',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+      <div className="pop" style={{background:'#1a1b2e',border:'1px solid rgba(255,255,255,0.1)',
+        borderRadius:20,padding:24,width:'100%',maxWidth:380,maxHeight:'85vh',overflowY:'auto'}}>
+
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+          <span style={{color:'#fff',fontWeight:700,fontSize:18}}>🏠 Rooms</span>
+          <button onClick={onClose} style={{background:'none',border:'none',cursor:'pointer',
+            color:'#64748b',fontSize:22,padding:4,touchAction:'manipulation'}}>×</button>
+        </div>
+
+        {/* Tabs */}
+        <div style={{display:'flex',gap:4,marginBottom:20,background:'rgba(255,255,255,0.04)',borderRadius:12,padding:4}}>
+          {[['join','Join'],['create','Create'],['browse','Browse']].map(([t,l])=>(
+            <button key={t} onClick={()=>{setTab(t);setCreated(null);}}
+              style={{flex:1,padding:'8px 4px',borderRadius:9,fontSize:12,fontWeight:600,
+                border:'none',cursor:'pointer',touchAction:'manipulation',
+                background:tab===t?'rgba(99,102,241,0.3)':'transparent',
+                color:tab===t?'#a5b4fc':'#64748b',transition:'all .15s'}}>
+              {l}
+            </button>
+          ))}
+        </div>
+
+        {tab==='join'&&(
+          <div style={{display:'flex',flexDirection:'column',gap:12}}>
+            <input value={code} onChange={e=>setCode(e.target.value.toUpperCase())}
+              placeholder="Room code (e.g. AB12CD)" maxLength={6}
+              style={{...inputStyle,letterSpacing:8,fontFamily:'monospace',fontSize:22,fontWeight:700}}/>
+            <input value={pass} onChange={e=>setPass(e.target.value)}
+              placeholder="Password (if required)" type="password" style={inputStyle}/>
+            <label style={{display:'flex',alignItems:'center',gap:10,cursor:'pointer',
+              color:'#94a3b8',fontSize:13,touchAction:'manipulation'}}>
+              <input type="checkbox" checked={spec} onChange={e=>setSpec(e.target.checked)}
+                style={{accentColor:'#6366f1',width:16,height:16}}/>
+              👁 Join as Spectator (invisible, read-only)
+            </label>
+            <button disabled={code.length<4} onClick={()=>onJoin(code,pass,spec)}
+              style={btnStyle(code.length>=4)}>
+              Join Room →
+            </button>
+          </div>
+        )}
+
+        {tab==='create'&&!created&&(
+          <div style={{display:'flex',flexDirection:'column',gap:12}}>
+            <input value={rname} onChange={e=>setRname(e.target.value)}
+              placeholder="Room name…" maxLength={30} style={inputStyle}/>
+            <input value={rpass} onChange={e=>setRpass(e.target.value)}
+              placeholder="🔒 Password (optional)" type="password" style={inputStyle}/>
+            <button disabled={!rname.trim()} onClick={create}
+              style={btnStyle(!!rname.trim(),'#10b981')}>
+              Create Private Room
+            </button>
+          </div>
+        )}
+
+        {tab==='create'&&created&&(
+          <div style={{textAlign:'center',display:'flex',flexDirection:'column',alignItems:'center',gap:16,paddingTop:8}}>
+            <div style={{fontSize:44}}>🎉</div>
+            <div style={{color:'#fff',fontWeight:700,fontSize:20}}>{created.name}</div>
+            <div style={{background:'rgba(99,102,241,0.12)',border:'1px solid rgba(99,102,241,0.3)',
+              borderRadius:14,padding:'16px 24px',width:'100%'}}>
+              <div style={{color:'#94a3b8',fontSize:11,marginBottom:6,textTransform:'uppercase',letterSpacing:'.1em'}}>Room Code</div>
+              <div style={{color:'#a5b4fc',fontSize:32,fontWeight:900,letterSpacing:12,fontFamily:'monospace'}}>{created.roomId}</div>
+            </div>
+            <div style={{color:'#64748b',fontSize:12}}>Share this code with your friends</div>
+            <div style={{display:'flex',gap:8,width:'100%'}}>
+              <button onClick={copy} style={{flex:1,padding:11,borderRadius:11,background:'rgba(255,255,255,0.07)',
+                color:'#fff',border:'1px solid rgba(255,255,255,0.1)',cursor:'pointer',fontSize:13,fontWeight:600,touchAction:'manipulation'}}>
+                {copied?'✓ Copied!':'📋 Copy'}
+              </button>
+              <button onClick={()=>{onJoin(created.roomId,rpass,false);onClose();}}
+                style={{flex:1,padding:11,borderRadius:11,background:'linear-gradient(135deg,#6366f1,#9333ea)',
+                  color:'#fff',border:'none',cursor:'pointer',fontWeight:700,fontSize:13,touchAction:'manipulation'}}>
+                Enter →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {tab==='browse'&&(
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {rooms.length===0&&<div style={{color:'#475569',textAlign:'center',padding:'24px 0',fontSize:13}}>No public rooms yet</div>}
+            {rooms.map(r=>(
+              <div key={r.id} onClick={()=>onJoin(r.id,'',false)}
+                style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+                  padding:'12px 14px',background:'rgba(255,255,255,0.04)',
+                  borderRadius:12,cursor:'pointer',border:'1px solid rgba(255,255,255,0.07)',
+                  touchAction:'manipulation'}}
+                onMouseEnter={e=>e.currentTarget.style.background='rgba(99,102,241,0.1)'}
+                onMouseLeave={e=>e.currentTarget.style.background='rgba(255,255,255,0.04)'}>
+                <div>
+                  <div style={{color:'#fff',fontWeight:600,fontSize:14}}>#{r.name}</div>
+                  <div style={{color:'#475569',fontSize:11}}>{r.count} online</div>
+                </div>
+                <span style={{color:'#6366f1',fontSize:12,fontWeight:600}}>Join →</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Sidebar ──────────────────────────────────────────────────────────────────
+function Sidebar({sender,status,onStatusChange,users,room,onOpenRooms,spectator,anon,onClose,isMobile}) {
+  const st = STATUSES.find(s=>s.v===status)||STATUSES[0];
+  const [showSt,setShowSt] = useState(false);
+
+  return (
+    <div style={{width:260,height:'100%',background:'#12131e',display:'flex',
+      flexDirection:'column',overflow:'hidden',borderRight:'1px solid rgba(255,255,255,0.06)'}}>
+
+      {/* Brand */}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+        padding:'16px 18px',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <div style={{width:34,height:34,borderRadius:10,
+            background:'linear-gradient(135deg,#6366f1,#9333ea)',
+            display:'flex',alignItems:'center',justifyContent:'center',fontSize:18}}>👾</div>
+          <div>
+            <div style={{color:'#fff',fontWeight:800,fontSize:15,letterSpacing:'-.3px'}}>GroupChat</div>
+            <div style={{color:'#475569',fontSize:10}}>#{room}</div>
+          </div>
+        </div>
+        {isMobile&&<button onClick={onClose} style={{background:'none',border:'none',
+          cursor:'pointer',color:'#64748b',fontSize:20,padding:4,touchAction:'manipulation'}}>×</button>}
+      </div>
+
+      {/* Rooms button */}
+      <div style={{padding:'12px 12px 0'}}>
+        <button onClick={onOpenRooms} style={{
+          display:'flex',alignItems:'center',gap:8,width:'100%',
+          padding:'10px 14px',borderRadius:14,background:'rgba(99,102,241,0.1)',
+          border:'1px solid rgba(99,102,241,0.2)',color:'#a5b4fc',
+          cursor:'pointer',fontWeight:600,fontSize:13,touchAction:'manipulation'}}
+          onMouseEnter={e=>e.currentTarget.style.background='rgba(99,102,241,0.2)'}
+          onMouseLeave={e=>e.currentTarget.style.background='rgba(99,102,241,0.1)'}>
+          🏠 Rooms
+          <span style={{marginLeft:'auto',background:'rgba(99,102,241,0.3)',
+            borderRadius:6,padding:'2px 8px',fontSize:10,fontWeight:700}}>
+            {room==='General'?'General':'Private'}
+          </span>
+        </button>
+      </div>
+
+      <div style={{height:1,background:'rgba(255,255,255,0.06)',margin:'12px 14px'}}/>
+
+      {/* You */}
+      <div style={{padding:'0 14px 12px',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
+        <div style={{fontSize:10,fontWeight:700,color:'#334155',textTransform:'uppercase',
+          letterSpacing:'.1em',marginBottom:10}}>You</div>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <div style={{position:'relative',cursor:'pointer'}} onClick={()=>setShowSt(v=>!v)}>
+            <PixelAvatar name={sender} size={36} ring ghost={spectator}/>
+            <div style={{position:'absolute',bottom:-2,right:-2,width:13,height:13,
+              borderRadius:'50%',background:st.c,border:'2.5px solid #12131e'}}/>
+          </div>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{color:'#e2e8f0',fontWeight:700,fontSize:13,
+              display:'flex',alignItems:'center',gap:5,
+              overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+              {sender}
+              {spectator&&<span style={{fontSize:9,background:'rgba(148,163,184,.15)',color:'#94a3b8',padding:'1px 5px',borderRadius:4}}>👁</span>}
+              {anon&&<span style={{fontSize:9,background:'rgba(107,114,128,.2)',color:'#9ca3af',padding:'1px 5px',borderRadius:4}}>👻</span>}
+            </div>
+            <div style={{fontSize:11,color:st.c,display:'flex',alignItems:'center',gap:3}}>
+              {st.e} {st.l}
+            </div>
+          </div>
+        </div>
+
+        {showSt&&(
+          <div style={{marginTop:8,background:'#0a0b14',borderRadius:10,
+            border:'1px solid rgba(255,255,255,0.08)',overflow:'hidden'}}>
+            {STATUSES.map(s=>(
+              <button key={s.v} onClick={()=>{onStatusChange(s.v);setShowSt(false);}}
+                style={{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',
+                  width:'100%',background:status===s.v?'rgba(99,102,241,0.15)':'transparent',
+                  border:'none',cursor:'pointer',color:s.c,fontSize:13,fontWeight:600,
+                  touchAction:'manipulation'}}
+                onMouseEnter={e=>e.currentTarget.style.background='rgba(255,255,255,0.06)'}
+                onMouseLeave={e=>e.currentTarget.style.background=status===s.v?'rgba(99,102,241,0.15)':'transparent'}>
+                {s.e} {s.l}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Online users */}
+      <div style={{flex:1,overflowY:'auto',padding:'10px 12px',WebkitOverflowScrolling:'touch'}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+          <div style={{fontSize:10,fontWeight:700,color:'#334155',textTransform:'uppercase',letterSpacing:'.1em'}}>
+            Online — {users.filter(u=>!u.spectator).length}
+          </div>
+          <div className="pulse" style={{width:7,height:7,borderRadius:'50%',background:'#22c55e'}}/>
+        </div>
+        {users.map((u,i)=>{
+          const s=STATUSES.find(s=>s.v===u.status)||STATUSES[0];
+          return (
+            <div key={i} style={{display:'flex',alignItems:'center',gap:10,
+              padding:'7px 8px',borderRadius:12,marginBottom:2}}>
+              <div style={{position:'relative'}}>
+                <PixelAvatar name={u.username} size={30} ghost={u.spectator}/>
+                <div style={{position:'absolute',bottom:-1,right:-1,width:9,height:9,
+                  borderRadius:'50%',background:s.c,border:'2px solid #12131e'}}/>
+              </div>
+              <div style={{minWidth:0,flex:1}}>
+                <div style={{color:u.username===sender?'#a5b4fc':'#e2e8f0',
+                  fontSize:13,fontWeight:500,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',
+                  display:'flex',alignItems:'center',gap:4}}>
+                  {u.username}{u.spectator&&<span style={{fontSize:10,opacity:.6}}>👁</span>}
+                </div>
+                <div style={{fontSize:10,color:s.c}}>{s.e} {s.l}</div>
+              </div>
+            </div>
+          );
+        })}
+        {users.length===0&&<div style={{color:'#334155',fontSize:12,textAlign:'center',padding:16}}>No one else here yet</div>}
+      </div>
+    </div>
+  );
+}
+
+// ── Room Brain ───────────────────────────────────────────────────────────────
+function RoomBrain({messages,onClose}) {
+  const [summary,setSummary] = useState('');
+  const [topics,setTopics]   = useState([]);
+  const [mood,setMood]       = useState('');
+  const [loading,setLoading] = useState(false);
+
+  const analyze = useCallback(async()=>{
+    const msgs = messages.filter(m=>m.message).slice(-40);
+    if(msgs.length<3){setSummary('Not enough messages yet. Keep chatting!');return;}
+    setLoading(true);
+    const transcript = msgs.map(m=>`${m.sender}: ${m.message}`).join('\n');
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          model:'claude-sonnet-4-6',max_tokens:1000,
+          messages:[{role:'user',content:`Analyze this chat. Reply ONLY with valid JSON, no markdown:\n{"summary":"2-3 casual sentences","topics":["t1","t2","t3"],"mood":"hype|chill|serious|funny|mixed","highlight":"funniest/most interesting moment"}\n\nChat:\n${transcript}`}]
+        })
+      });
+      const data = await res.json();
+      const text = (data.content?.[0]?.text||'').replace(/```json|```/g,'').trim();
+      const parsed = JSON.parse(text);
+      setSummary(parsed.summary||'');
+      setTopics(parsed.topics||[]);
+      setMood(parsed.mood||'');
+    } catch(e){setSummary('Could not generate summary. Try again.');}
+    finally{setLoading(false);}
+  },[messages]);
+
+  useEffect(()=>{analyze();},[]);
+
+  const moodCol={hype:'#f97316',chill:'#06b6d4',serious:'#6366f1',funny:'#10b981',mixed:'#f59e0b'}[mood]||'#6366f1';
+  const stats=[
+    {l:'Messages',v:messages.filter(m=>m.message).length},
+    {l:'Members',v:new Set(messages.map(m=>m.sender)).size},
+    {l:'Reactions',v:messages.reduce((a,m)=>a+Object.values(m.reactions||{}).reduce((b,u)=>b+u.length,0),0)},
+    {l:'Anonymous',v:messages.filter(m=>m.isAnon).length},
+  ];
+
+  return (
+    <div style={{position:'fixed',top:0,right:0,bottom:0,zIndex:400,
+      width:'min(320px, 90vw)',background:'#12131e',
+      borderLeft:'1px solid rgba(255,255,255,0.07)',
+      display:'flex',flexDirection:'column',
+      boxShadow:'-8px 0 40px rgba(0,0,0,0.5)'}}>
+      <div style={{padding:'16px 20px',borderBottom:'1px solid rgba(255,255,255,0.07)',
+        display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <span style={{fontSize:20}}>🧠</span>
+          <span style={{color:'#fff',fontWeight:800,fontSize:16}}>Room Brain</span>
+        </div>
+        <button onClick={onClose} style={{background:'none',border:'none',cursor:'pointer',
+          color:'#64748b',fontSize:20,padding:4,touchAction:'manipulation'}}>×</button>
+      </div>
+
+      <div style={{flex:1,overflowY:'auto',padding:20,display:'flex',flexDirection:'column',gap:16}}>
+        <div style={{fontSize:12,color:'#475569'}}>AI-powered live summary of your conversation</div>
+
+        {mood&&(
+          <div style={{background:`${moodCol}18`,border:`1px solid ${moodCol}33`,
+            borderRadius:12,padding:'12px 14px',display:'flex',alignItems:'center',gap:10}}>
+            <span style={{fontSize:20}}>✨</span>
+            <div>
+              <div style={{fontSize:10,color:'#64748b',textTransform:'uppercase',letterSpacing:'.08em'}}>Room Mood</div>
+              <div style={{color:moodCol,fontWeight:700,textTransform:'capitalize',marginTop:2}}>{mood}</div>
+            </div>
+          </div>
+        )}
+
+        <div style={{background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.07)',
+          borderRadius:12,padding:16}}>
+          <div style={{fontSize:10,fontWeight:700,color:'#475569',textTransform:'uppercase',
+            letterSpacing:'.08em',marginBottom:10}}>What's happening</div>
+          {loading?(
+            <div style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0'}}>
+              <div style={{width:14,height:14,borderRadius:'50%',border:'2px solid #6366f1',
+                borderTopColor:'transparent',animation:'spin 0.8s linear infinite'}}/>
+              <span style={{color:'#475569',fontSize:13}}>Analyzing…</span>
+              <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+            </div>
+          ):(
+            <div style={{color:'#cbd5e1',fontSize:13,lineHeight:1.6}}>
+              {summary||'Click Refresh to analyze'}
+            </div>
+          )}
+        </div>
+
+        {topics.length>0&&(
+          <div>
+            <div style={{fontSize:10,fontWeight:700,color:'#475569',textTransform:'uppercase',
+              letterSpacing:'.08em',marginBottom:8}}>Hot Topics</div>
+            <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+              {topics.map(t=>(
+                <span key={t} style={{background:'rgba(99,102,241,0.15)',color:'#a5b4fc',
+                  border:'1px solid rgba(99,102,241,0.25)',borderRadius:8,
+                  padding:'3px 10px',fontSize:12}}>{t}</span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+          {stats.map(s=>(
+            <div key={s.l} style={{background:'rgba(255,255,255,0.03)',
+              border:'1px solid rgba(255,255,255,0.07)',borderRadius:10,
+              padding:12,textAlign:'center'}}>
+              <div style={{color:'#6366f1',fontWeight:800,fontSize:22,lineHeight:1}}>{s.v}</div>
+              <div style={{color:'#475569',fontSize:10,marginTop:4}}>{s.l}</div>
+            </div>
+          ))}
+        </div>
+
+        <button onClick={analyze} disabled={loading} style={{
+          padding:'12px',borderRadius:12,border:'none',cursor:loading?'not-allowed':'pointer',
+          background:loading?'rgba(255,255,255,0.05)':'linear-gradient(135deg,#6366f1,#9333ea)',
+          color:'#fff',fontWeight:700,fontSize:13,display:'flex',alignItems:'center',
+          justifyContent:'center',gap:8,touchAction:'manipulation'}}>
+          🔄 Refresh Summary
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Moderation Block ─────────────────────────────────────────────────────────
+function ModBlock({reason,msg,onClose}) {
+  const icons={profanity:'⚖️',illegal:'🚫',sexual:'🛡️'};
+  return (
+    <div style={{position:'fixed',inset:0,zIndex:600,background:'rgba(0,0,0,0.85)',
+      backdropFilter:'blur(16px)',display:'flex',alignItems:'center',
+      justifyContent:'center',padding:16}}>
+      <div className="pop" style={{background:'#1a1b2e',border:'1px solid rgba(239,68,68,0.3)',
+        borderRadius:20,padding:28,width:'100%',maxWidth:340,textAlign:'center',
+        display:'flex',flexDirection:'column',alignItems:'center',gap:16}}>
+        <div style={{fontSize:44}}>{icons[reason]||'⚠️'}</div>
+        <div style={{color:'#fff',fontWeight:700,fontSize:18}}>Message Blocked</div>
+        <div style={{color:'#94a3b8',fontSize:14,lineHeight:1.5}}>{msg}</div>
+        <div style={{background:'rgba(239,68,68,0.08)',border:'1px solid rgba(239,68,68,0.2)',
+          borderRadius:10,padding:'10px 14px',width:'100%'}}>
+          <span style={{color:'#f87171',fontSize:12}}>🛡️ This space is safe &amp; family-friendly</span>
+        </div>
+        <button onClick={onClose} style={{padding:'11px 24px',borderRadius:12,
+          background:'rgba(255,255,255,0.08)',color:'#fff',border:'1px solid rgba(255,255,255,0.12)',
+          cursor:'pointer',fontWeight:600,fontSize:13,touchAction:'manipulation'}}>
+          Edit Message
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Join Screen ───────────────────────────────────────────────────────────────
+function JoinScreen({onJoin}) {
+  const [name,setName] = useState('');
+  const [lang,setLang] = useState('en');
+  const inputRef = useRef(null);
+  useEffect(()=>{ setTimeout(()=>inputRef.current?.focus(),300); },[]);
+
+  const inputStyle = {
+    width:'100%',padding:'12px 14px',background:'rgba(255,255,255,0.05)',
+    border:'1px solid rgba(255,255,255,0.12)',borderRadius:12,
+    color:'#fff',fontSize:16,outline:'none',boxSizing:'border-box',
+  };
+  return (
+    <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.92)',
+      backdropFilter:'blur(20px)',display:'flex',alignItems:'flex-start',
+      justifyContent:'center',overflowY:'auto',
+      paddingTop:'max(48px, env(safe-area-inset-top))',
+      paddingBottom:'max(24px, env(safe-area-inset-bottom))',
+      paddingLeft:16,paddingRight:16,zIndex:9999}}>
+      <div className="pop" style={{background:'#1a1b2e',border:'1px solid rgba(255,255,255,0.1)',
+        borderRadius:24,padding:28,width:'100%',maxWidth:340,
+        display:'flex',flexDirection:'column',alignItems:'center',gap:20}}>
+
+        <div style={{position:'relative',padding:12,background:'#0a0b14',
+          borderRadius:14,border:'1px solid rgba(255,255,255,0.07)'}}>
+          <PixelAvatar name={name.trim()||'You'} size={88} ring/>
+          <div style={{position:'absolute',bottom:-6,right:-6,fontSize:20}}>✨</div>
+        </div>
+
+        <div style={{textAlign:'center'}}>
+          <div style={{color:'#fff',fontWeight:800,fontSize:22,letterSpacing:'-.5px'}}>Join GroupChat</div>
+          <div style={{color:'#475569',fontSize:12,marginTop:4}}>Your pixel avatar is unique to your name</div>
+        </div>
+
+        <div style={{width:'100%',display:'flex',flexDirection:'column',gap:12}}>
+          <input ref={inputRef} value={name} onChange={e=>setName(e.target.value)}
+            onKeyDown={e=>e.key==='Enter'&&name.trim()&&onJoin(name.trim(),lang)}
+            placeholder="Your name…" maxLength={24} style={inputStyle}/>
+
+          <select value={lang} onChange={e=>setLang(e.target.value)}
+            style={{...inputStyle,background:'#0f1019',cursor:'pointer'}}>
+            {LANGS.map(l=><option key={l.c} value={l.c}>{l.l}</option>)}
+          </select>
+
+          <button disabled={!name.trim()} onClick={()=>name.trim()&&onJoin(name.trim(),lang)}
+            style={{width:'100%',padding:14,borderRadius:12,fontWeight:700,fontSize:15,
+              border:'none',touchAction:'manipulation',
+              background:name.trim()?'linear-gradient(135deg,#6366f1,#9333ea)':'rgba(255,255,255,0.06)',
+              color:name.trim()?'#fff':'#334155',cursor:name.trim()?'pointer':'not-allowed',
+              transition:'all .15s'}}>
+            Enter Chat →
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main App ─────────────────────────────────────────────────────────────────
+function App() {
+  const [sender,    setSender]    = useState('');
+  const [lang,      setLang]      = useState('en');
+  const [ready,     setReady]     = useState(false);
+  const [message,   setMessage]   = useState('');
+  const [messages,  setMessages]  = useState([]);
+  const [typing,    setTyping]    = useState([]);
+  const [users,     setUsers]     = useState([]);
+  const [connected, setConnected] = useState(false);
+  const [imgPrev,   setImgPrev]   = useState(null);
+  const [lightbox,  setLightbox]  = useState(null);
+  const [spectator, setSpectator] = useState(false);
+  const [roomId,    setRoomId]    = useState('general');
+  const [roomName,  setRoomName]  = useState('General');
+  const [status,    setStatus]    = useState('online');
+  const [anon,      setAnon]      = useState(false);
+  const [cinId,     setCinId]     = useState(null);
+  const [confetti,  setConfetti]  = useState(false);
+  const [toast,     setToast]     = useState(null);
+  const [modBlock,  setModBlock]  = useState(null);
+  const [sidebar,   setSidebar]   = useState(false);
+  const [roomsOpen, setRoomsOpen] = useState(false);
+  const [brainOpen, setBrainOpen] = useState(false);
+  const [atBottom,  setAtBottom]  = useState(true);
+  const [unread,    setUnread]    = useState(0);
+
+  const msgsRef   = useRef(null);
+  const endRef    = useRef(null);
+  const inputRef  = useRef(null);
+  const typTimer  = useRef(null);
+  const cinRef    = useRef({});
+  const senderRef = useRef('');
+  const langRef   = useRef('en');
+
+  useEffect(()=>{ senderRef.current=sender; },[sender]);
+  useEffect(()=>{ langRef.current=lang; },[lang]);
+
+  const isMobile = window.innerWidth < 768;
+
+  const showToast = (msg,sev='info') => setToast({msg,sev});
+
+  // Translate
+  const translate = useCallback(async(text,tl)=>{
+    if(!tl||tl==='en') return null;
+    try{
+      const r=await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text.slice(0,300))}&langpair=en|${tl}`);
+      const d=await r.json();
+      const t=d?.responseData?.translatedText;
+      return t&&t!==text&&!t.includes('PLEASE SELECT')?t:null;
+    }catch{return null;}
+  },[]);
+
+  // Socket events
+  useEffect(()=>{
+    socket.on('connect',   ()=>{ setConnected(true); showToast('Connected','success'); });
+    socket.on('disconnect',()=>{ setConnected(false); showToast('Reconnecting…','warning'); });
+    if(socket.connected) setConnected(true);
+
+    socket.on('chat history',history=>{
+      setMessages((history||[]).map(m=>({...m,id:m.id||makeId(),reactions:m.reactions||{}})));
+    });
+
+    socket.on('chat message',async data=>{
+      const msg={...data,id:data.id||makeId(),reactions:data.reactions||{}};
+      if(data.sender!==senderRef.current){
+        if(msg.message?.toLowerCase().includes(senderRef.current.toLowerCase())){
+          showToast(`📣 ${data.sender} mentioned you`,'info');
+        }
+        if(!msgsRef.current||msgsRef.current.scrollHeight-msgsRef.current.scrollTop-msgsRef.current.clientHeight>100){
+          setUnread(u=>u+1);
+        }
       }
-    </style>
-  </head>
-  <body>
-    <div id="emp-Data"></div>
-    <script src="./vendor.bundle.js"></script>
-    <script src="./app.bundle.js"></script>
-  </body>
+      const tl=langRef.current;
+      if(tl&&tl!=='en'&&msg.message){
+        const t=await translate(msg.message,tl);
+        if(t) msg.translate=t;
+      }
+      setMessages(p=>[...p,msg]);
+    });
+
+    socket.on('reaction update',({msgId,reactions})=>{
+      setMessages(p=>p.map(m=>m.id===msgId?{...m,reactions}:m));
+    });
+
+    socket.on('typing',({sender:s})=>{
+      if(s!==senderRef.current) setTyping(p=>p.includes(s)?p:[...p,s]);
+    });
+    socket.on('stop typing',({sender:s})=>setTyping(p=>p.filter(u=>u!==s)));
+    socket.on('user list',setUsers);
+
+    socket.on('cinematic moment',({msgId})=>{
+      setCinId(msgId); setConfetti(true);
+      showToast('🎬 Cinematic Moment!','success');
+      setTimeout(()=>setCinId(null),5000);
+    });
+
+    socket.on('room joined',({room,name,spectator:sp})=>{
+      setRoomId(room); setRoomName(name);
+      setSpectator(sp); setMessages([]);
+      setRoomsOpen(false);
+      showToast(sp?`👁 Joined #${name} as spectator`:`🏠 Joined #${name}`,'success');
+    });
+
+    socket.on('error',msg=>showToast(msg,'error'));
+
+    const onPaste=e=>{
+      for(const item of e.clipboardData.items){
+        if(item.type.startsWith('image/')){
+          const r=new FileReader();
+          r.onload=ev=>setImgPrev(ev.target.result);
+          r.readAsDataURL(item.getAsFile()); break;
+        }
+      }
+    };
+    window.addEventListener('paste',onPaste);
+    if(Notification.permission==='default') Notification.requestPermission();
+    return()=>{
+      ['connect','disconnect','chat history','chat message','reaction update',
+       'typing','stop typing','user list','cinematic moment','room joined','error']
+        .forEach(e=>socket.off(e));
+      window.removeEventListener('paste',onPaste);
+    };
+  },[translate]);
+
+  // Auto-scroll
+  useEffect(()=>{
+    if(!atBottom) return;
+    const el=msgsRef.current;
+    if(el){ el.scrollTop=el.scrollHeight; setUnread(0); }
+  },[messages.length]);
+
+  const handleScroll=useCallback(()=>{
+    const el=msgsRef.current; if(!el) return;
+    const ab=el.scrollHeight-el.scrollTop-el.clientHeight<100;
+    setAtBottom(ab);
+    if(ab) setUnread(0);
+  },[]);
+
+  // Join
+  const joinChat=useCallback((name,l)=>{
+    setSender(name); setLang(l); langRef.current=l;
+    setReady(true);
+    sessionStorage.setItem('gc_name',name);
+    sessionStorage.setItem('gc_lang',l);
+    socket.emit('join',{username:name,room:'general'});
+  },[]);
+
+  useEffect(()=>{
+    const n=sessionStorage.getItem('gc_name');
+    const l=sessionStorage.getItem('gc_lang')||'en';
+    if(n) joinChat(n,l);
+  },[joinChat]);
+
+  // Join room
+  const joinRoom=useCallback((code,pass,sp)=>{
+    socket.emit('join',{username:sender,room:code,password:pass,spectator:sp});
+  },[sender]);
+
+  // Send
+  const send=useCallback(()=>{
+    if(spectator) return;
+    if(imgPrev){
+      socket.emit('chat message',{id:makeId(),sender,image:imgPrev,time:formatTime(),reactions:{},isAnon:anon});
+      setImgPrev(null); return;
+    }
+    const text=message.trim(); if(!text) return;
+    // Moderation
+    const mod=moderate(text);
+    if(mod.blocked){ setModBlock({reason:mod.reason,msg:mod.msg}); return; }
+    // Consequence
+    let effect=null;
+    for(const r of CONSEQUENCES){ if(r.t.test(text)){effect=r.e;showToast(r.msg,'warning');break;} }
+    socket.emit('chat message',{id:makeId(),sender:anon?'Anonymous':sender,message:text,time:formatTime(),reactions:{},effect,isAnon:anon});
+    setMessage('');
+    clearTimeout(typTimer.current);
+    socket.emit('stop typing',{sender});
+    setTimeout(()=>inputRef.current?.focus(),50);
+  },[message,sender,imgPrev,anon,spectator]);
+
+  // React
+  const react=useCallback((msgId,emoji)=>{
+    if(spectator) return;
+    setMessages(p=>p.map(m=>{
+      if(m.id!==msgId) return m;
+      const r={...m.reactions}; if(!r[emoji]) r[emoji]=[];
+      const i=r[emoji].indexOf(sender);
+      r[emoji]=i===-1?[...r[emoji],sender]:r[emoji].filter(u=>u!==sender);
+      return{...m,reactions:r};
+    }));
+    socket.emit('reaction',{msgId,emoji,user:sender});
+    // Cinematic check
+    if(!cinRef.current[msgId]) cinRef.current[msgId]=[];
+    cinRef.current[msgId].push(Date.now());
+    const recent=cinRef.current[msgId].filter(t=>Date.now()-t<10000);
+    cinRef.current[msgId]=recent;
+    if(recent.length>=5){ socket.emit('cinematic check',{msgId}); cinRef.current[msgId]=[]; }
+  },[sender,spectator]);
+
+  const handleTyping=e=>{
+    setMessage(e.target.value);
+    socket.emit('typing',{sender});
+    clearTimeout(typTimer.current);
+    typTimer.current=setTimeout(()=>socket.emit('stop typing',{sender}),1500);
+  };
+  const handleKey=e=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();} if(e.key==='Escape') setImgPrev(null); };
+  const handleFile=e=>{ const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=ev=>setImgPrev(ev.target.result); r.readAsDataURL(f); e.target.value=''; };
+
+  const typingLabel = typing.length===1?`${typing[0]} is typing…`:typing.length>1?`${typing.slice(0,2).join(' & ')} are typing…`:'';
+  const st = STATUSES.find(s=>s.v===status)||STATUSES[0];
+
+  if(!ready) return <JoinScreen onJoin={joinChat}/>;
+
+  return (
+    <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',
+      justifyContent:'center',background:'#0a0b14',overflow:'hidden'}}>
+
+      {confetti&&<Confetti onDone={()=>setConfetti(false)}/>}
+      {toast&&<Toast msg={toast.msg} sev={toast.sev} onClose={()=>setToast(null)}/>}
+      {modBlock&&<ModBlock reason={modBlock.reason} msg={modBlock.msg} onClose={()=>setModBlock(null)}/>}
+      {roomsOpen&&<RoomsModal onClose={()=>setRoomsOpen(false)} onJoin={joinRoom} username={sender}/>}
+      {brainOpen&&<RoomBrain messages={messages} onClose={()=>setBrainOpen(false)}/>}
+
+      {/* Lightbox */}
+      {lightbox&&(
+        <div onClick={()=>setLightbox(null)} style={{position:'fixed',inset:0,zIndex:800,
+          background:'rgba(0,0,0,0.95)',display:'flex',alignItems:'center',justifyContent:'center',cursor:'zoom-out'}}>
+          <img src={lightbox} alt="full" style={{maxWidth:'90vw',maxHeight:'90vh',borderRadius:12}}/>
+          <button onClick={()=>setLightbox(null)} style={{position:'absolute',top:16,right:16,
+            background:'rgba(255,255,255,0.1)',border:'none',color:'#fff',
+            fontSize:20,width:36,height:36,borderRadius:'50%',cursor:'pointer',
+            display:'flex',alignItems:'center',justifyContent:'center',touchAction:'manipulation'}}>×</button>
+        </div>
+      )}
+
+      {/* Card */}
+      <div style={{
+        position:'relative',width:'100%',height:'100%',display:'flex',overflow:'hidden',
+        background:'#131420',
+        ...(!isMobile?{maxWidth:1024,maxHeight:'94vh',height:'94vh',borderRadius:16,
+          border:'1px solid rgba(255,255,255,0.07)',boxShadow:'0 40px 120px rgba(0,0,0,0.8)'}:{}),
+      }}>
+
+        {/* Mobile sidebar overlay */}
+        {sidebar&&isMobile&&<div onClick={()=>setSidebar(false)} style={{position:'fixed',inset:0,zIndex:200,background:'rgba(0,0,0,0.6)'}}/>}
+
+        {/* Sidebar */}
+        <div style={{
+          ...(!isMobile?{width:260,flexShrink:0}:{
+            position:'absolute',top:0,bottom:0,left:0,zIndex:300,
+            transform:sidebar?'translateX(0)':'translateX(-100%)',
+            transition:'transform .3s ease',
+          })
+        }}>
+          <Sidebar sender={sender} status={status} onStatusChange={v=>{setStatus(v);socket.emit('status',{status:v});}}
+            users={users} room={roomName} onOpenRooms={()=>{setRoomsOpen(true);setSidebar(false);}}
+            spectator={spectator} anon={anon} onClose={()=>setSidebar(false)} isMobile={isMobile}/>
+        </div>
+
+        {/* Main column */}
+        <div style={{flex:1,display:'flex',flexDirection:'column',minWidth:0,overflow:'hidden',position:'relative'}}>
+
+          {/* Header */}
+          <div style={{
+            display:'flex',alignItems:'center',gap:8,
+            padding:`max(8px, env(safe-area-inset-top)) 14px 10px`,
+            borderBottom:'1px solid rgba(255,255,255,0.06)',
+            background:'#12131e',flexShrink:0,minHeight:52,
+          }}>
+            {/* Hamburger */}
+            {isMobile&&(
+              <button onClick={()=>setSidebar(v=>!v)}
+                style={{background:'none',border:'none',cursor:'pointer',color:'#64748b',
+                  width:36,height:36,display:'flex',alignItems:'center',justifyContent:'center',
+                  borderRadius:8,flexShrink:0,position:'relative',touchAction:'manipulation'}}>
+                ☰
+                {unread>0&&(
+                  <span style={{position:'absolute',top:4,right:4,width:16,height:16,
+                    borderRadius:'50%',background:'#6366f1',fontSize:9,fontWeight:700,
+                    color:'#fff',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                    {unread}
+                  </span>
+                )}
+              </button>
+            )}
+
+            {/* Icon */}
+            <div style={{width:32,height:32,borderRadius:9,background:'#1e1f2e',
+              border:'1px solid rgba(255,255,255,0.08)',display:'flex',alignItems:'center',
+              justifyContent:'center',fontSize:17,flexShrink:0}}>👾</div>
+
+            {/* Title */}
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{color:'#e2e8f0',fontWeight:700,fontSize:13,
+                display:'flex',alignItems:'center',gap:4,
+                overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                # {roomName}
+                {spectator&&<span style={{fontSize:9,background:'rgba(148,163,184,.15)',color:'#94a3b8',padding:'1px 5px',borderRadius:4}}>SPECTATOR</span>}
+              </div>
+              <div style={{fontSize:10,color:typingLabel?'#f59e0b':'#475569',
+                fontStyle:typingLabel?'italic':'normal',
+                overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                {typingLabel||`${users.length} online`}
+              </div>
+            </div>
+
+            {/* Anon toggle */}
+            {!spectator&&(
+              <button onClick={()=>setAnon(v=>!v)}
+                style={{width:30,height:30,borderRadius:8,flexShrink:0,
+                  background:anon?'rgba(107,114,128,0.25)':'transparent',
+                  border:`1px solid ${anon?'rgba(107,114,128,0.4)':'rgba(255,255,255,0.08)'}`,
+                  color:anon?'#d1d5db':'#475569',cursor:'pointer',
+                  fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',
+                  touchAction:'manipulation'}}>
+                👻
+              </button>
+            )}
+
+            {/* Room Brain */}
+            <button onClick={()=>setBrainOpen(v=>!v)}
+              style={{width:30,height:30,borderRadius:8,flexShrink:0,
+                background:'rgba(99,102,241,0.1)',
+                border:'1px solid rgba(99,102,241,0.2)',
+                color:'#6366f1',cursor:'pointer',fontSize:16,
+                display:'flex',alignItems:'center',justifyContent:'center',
+                touchAction:'manipulation'}}>
+              🧠
+            </button>
+
+            {/* Connection dot */}
+            <div style={{width:8,height:8,borderRadius:'50%',flexShrink:0,
+              background:connected?'#22c55e':'#ef4444',
+              animation:connected?'pulse 2s infinite':'none'}}/>
+          </div>
+
+          {/* Spectator banner */}
+          {spectator&&(
+            <div style={{background:'rgba(148,163,184,0.06)',
+              borderBottom:'1px solid rgba(148,163,184,0.1)',
+              padding:'7px 16px',textAlign:'center',color:'#94a3b8',fontSize:12}}>
+              👁 Spectator Mode — invisible &amp; read-only
+            </div>
+          )}
+
+          {/* Messages */}
+          <div ref={msgsRef} onScroll={handleScroll}
+            style={{flex:1,overflowY:'auto',overflowX:'hidden',
+              padding:'16px 14px 80px',
+              WebkitOverflowScrolling:'touch',
+              overscrollBehavior:'contain'}}>
+
+            {messages.length===0&&(
+              <div style={{height:'100%',display:'flex',flexDirection:'column',
+                alignItems:'center',justifyContent:'center',gap:12,
+                textAlign:'center',userSelect:'none'}}>
+                <div style={{fontSize:48,opacity:.2}}>👾</div>
+                <div style={{color:'#475569',fontSize:14}}>No messages yet — say hello!</div>
+                <div style={{display:'flex',flexWrap:'wrap',justifyContent:'center',gap:6}}>
+                  {['Hover to react 😊','5 reactions = 🎉','👻 Anon mode','🏠 Private rooms'].map(t=>(
+                    <span key={t} style={{fontSize:11,background:'rgba(255,255,255,0.04)',
+                      color:'#475569',border:'1px solid rgba(255,255,255,0.08)',
+                      borderRadius:8,padding:'3px 9px'}}>{t}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {messages.map((msg,idx)=>{
+              const isMe=msg.sender===sender;
+              const prev=messages[idx-1];
+              const showAv=!isMe&&msg.sender!==prev?.sender;
+              const gap=idx>0&&msg.sender===prev?.sender?2:12;
+              return (
+                <div key={msg.id||idx} style={{marginTop:gap}}>
+                  <Bubble msg={msg} isMe={isMe} showAv={showAv} showName={showAv&&!isMe}
+                    onReact={react} myName={sender} spectator={spectator} cinId={cinId}/>
+                </div>
+              );
+            })}
+
+            {/* Typing indicator */}
+            {typingLabel&&(
+              <div style={{display:'flex',alignItems:'flex-end',gap:8,marginTop:12}}>
+                <div style={{width:30,flexShrink:0}}/>
+                <div style={{background:'#1e1f2e',border:'1px solid rgba(255,255,255,0.06)',
+                  borderRadius:18,borderBottomLeftRadius:4,padding:'10px 14px',
+                  display:'flex',gap:5,alignItems:'center'}}>
+                  {[0,1,2].map(i=><div key={i} className="bounce" style={{width:6,height:6,
+                    borderRadius:'50%',background:'#475569',animationDelay:`${i*150}ms`}}/>)}
+                </div>
+              </div>
+            )}
+            <div ref={endRef}/>
+          </div>
+
+          {/* Scroll to bottom */}
+          {!atBottom&&(
+            <div style={{position:'absolute',bottom: imgPrev?128:74,
+              left:'50%',transform:'translateX(-50%)',zIndex:20}}>
+              <button onClick={()=>{
+                  const el=msgsRef.current;
+                  if(el){el.scrollTop=el.scrollHeight;setUnread(0);setAtBottom(true);}
+                }}
+                style={{display:'flex',alignItems:'center',gap:6,
+                  padding:'7px 16px',
+                  background:'linear-gradient(135deg,#6366f1,#9333ea)',
+                  color:'#fff',border:'none',borderRadius:20,cursor:'pointer',
+                  fontWeight:700,fontSize:12,
+                  boxShadow:'0 4px 20px rgba(99,102,241,0.5)',
+                  whiteSpace:'nowrap',touchAction:'manipulation'}}>
+                ↓ {unread>0?`${unread} new`:'Scroll down'}
+              </button>
+            </div>
+          )}
+
+          {/* Image preview */}
+          {imgPrev&&(
+            <div style={{margin:'0 14px 8px',padding:'10px 12px',background:'#1e1f2e',
+              border:'1px solid rgba(255,255,255,0.1)',borderRadius:12,
+              display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
+              <img src={imgPrev} alt="preview" style={{width:44,height:44,borderRadius:8,objectFit:'cover',flexShrink:0}}/>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{color:'#fff',fontSize:13,fontWeight:600}}>Image ready</div>
+                <div style={{color:'#475569',fontSize:11,marginTop:2}}>Enter to send · Esc to cancel</div>
+              </div>
+              <button onClick={()=>setImgPrev(null)} style={{background:'none',border:'none',
+                cursor:'pointer',color:'#64748b',fontSize:18,padding:4,flexShrink:0,touchAction:'manipulation'}}>×</button>
+            </div>
+          )}
+
+          {/* Input bar */}
+          {!spectator&&(
+            <div style={{
+              padding:'8px 14px',
+              paddingBottom:'max(10px, env(safe-area-inset-bottom))',
+              background:'#12131e',
+              borderTop:'1px solid rgba(255,255,255,0.06)',
+              flexShrink:0,
+            }}>
+              {anon&&(
+                <div style={{fontSize:11,color:'#9ca3af',marginBottom:6,
+                  display:'flex',alignItems:'center',gap:4}}>
+                  👻 <span>Sending as Anonymous</span>
+                </div>
+              )}
+              <div style={{display:'flex',alignItems:'center',gap:8,
+                background:'#1a1b2e',border:'1px solid rgba(255,255,255,0.1)',
+                borderRadius:24,padding:'6px 8px 6px 14px',minHeight:48,
+                transition:'border-color .2s'}}
+                onFocusCapture={e=>e.currentTarget.style.borderColor='rgba(99,102,241,0.5)'}
+                onBlurCapture={e=>e.currentTarget.style.borderColor='rgba(255,255,255,0.1)'}>
+
+                {/* Attach */}
+                <label style={{cursor:'pointer',color:'#475569',display:'flex',
+                  padding:6,borderRadius:8,flexShrink:0,touchAction:'manipulation'}}
+                  onMouseEnter={e=>e.currentTarget.style.color='#6366f1'}
+                  onMouseLeave={e=>e.currentTarget.style.color='#475569'}>
+                  📎
+                  <input type="file" accept="image/*" hidden onChange={handleFile}/>
+                </label>
+
+                <input ref={inputRef} value={message} onChange={handleTyping} onKeyDown={handleKey}
+                  placeholder={imgPrev?'Image attached…':anon?'Message as Anonymous…':'Message the group…'}
+                  disabled={!!imgPrev}
+                  style={{flex:1,background:'transparent',border:'none',outline:'none',
+                    color:'#fff',fontSize:16,padding:'4px 0',minWidth:0,
+                    fontFamily:'inherit'}}/>
+
+                <button onClick={send} disabled={!message.trim()&&!imgPrev}
+                  style={{width:36,height:36,borderRadius:'50%',border:'none',
+                    flexShrink:0,touchAction:'manipulation',
+                    background:(!message.trim()&&!imgPrev)?'rgba(255,255,255,0.05)':'linear-gradient(135deg,#6366f1,#9333ea)',
+                    color:'#fff',cursor:(!message.trim()&&!imgPrev)?'not-allowed':'pointer',
+                    opacity:(!message.trim()&&!imgPrev)?0.3:1,
+                    display:'flex',alignItems:'center',justifyContent:'center',
+                    fontSize:18,transition:'all .15s'}}>
+                  ➤
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
 </html>
