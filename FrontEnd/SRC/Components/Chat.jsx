@@ -172,7 +172,7 @@ function accentColor(name) {
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
-const REACTION_EMOJIS = ['👍','❤️','😂','😮','🔥','💯','👏','😢','🎉','💀','✨','🤯'];
+const REACTION_EMOJIS = ['👍','❤️','😂','😮','🔥','😢'];
 const STATUSES = [
   { value: 'online',  label: 'Online',   color: '#22c55e', Icon: FiberManualRecordIcon },
   { value: 'coding',  label: 'Coding',   color: '#60a5fa', Icon: CodeIcon },
@@ -221,45 +221,77 @@ function Confetti({ onDone }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// REACTION PICKER — horizontal strip that appears BELOW the bubble
+// REACTION PICKER — compact 6-emoji pill, renders below bubble in flow
 // ─────────────────────────────────────────────────────────────────────────────
 function ReactionPicker({ onPick, onClose, isMe }) {
   const ref = useRef(null);
+
   useEffect(() => {
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
-    document.addEventListener('pointerdown', handler, true);
-    return () => document.removeEventListener('pointerdown', handler, true);
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) onClose();
+    };
+    // small delay so the same pointerdown that opened it doesn't also close it
+    const id = setTimeout(() => document.addEventListener('pointerdown', handler, true), 50);
+    return () => {
+      clearTimeout(id);
+      document.removeEventListener('pointerdown', handler, true);
+    };
   }, [onClose]);
+
   return (
-    <Fade in>
-      <Paper ref={ref} elevation={8} sx={{
-        display: 'flex', flexDirection: 'row', flexWrap: 'nowrap',
-        gap: 0.25, p: 0.5, mt: 0.5,
-        background: '#1a1b2e',
-        border: '1px solid rgba(255,255,255,0.12)',
-        borderRadius: 3,
-        boxShadow: '0 4px 24px rgba(0,0,0,0.5)',
-        overflowX: 'auto',
-        // Always stays in the flow — never absolute, never floats up
-      }}>
+    <Fade in timeout={120}>
+      <Box
+        ref={ref}
+        sx={{
+          display: 'inline-flex',
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: '2px',
+          px: '6px',
+          py: '4px',
+          mt: '4px',
+          background: '#1e2035',
+          border: '1px solid rgba(255,255,255,0.1)',
+          borderRadius: '20px',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.45)',
+          // Never overflow — 6 emojis always fit in one row
+          flexWrap: 'nowrap',
+          alignSelf: isMe ? 'flex-end' : 'flex-start',
+        }}
+      >
         {REACTION_EMOJIS.map(emoji => (
-          <IconButton key={emoji} size="small"
-            onPointerDown={(e) => { e.stopPropagation(); onPick(emoji); onClose(); }}
+          <Box
+            key={emoji}
+            component="button"
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              onPick(emoji);
+              onClose();
+            }}
             sx={{
-              fontSize: 20, width: 36, height: 36, borderRadius: 2, flexShrink: 0,
-              '&:hover': { background: 'rgba(255,255,255,0.1)', transform: 'scale(1.25)' },
-              transition: 'transform 0.1s, background 0.1s',
-            }}>
+              width: 36,
+              height: 36,
+              fontSize: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'transparent',
+              border: 'none',
+              borderRadius: '50%',
+              cursor: 'pointer',
+              flexShrink: 0,
+              transition: 'transform 0.12s, background 0.12s',
+              '&:hover': {
+                transform: 'scale(1.35)',
+                background: 'rgba(255,255,255,0.08)',
+              },
+              '&:active': { transform: 'scale(0.92)' },
+            }}
+          >
             {emoji}
-          </IconButton>
+          </Box>
         ))}
-        <Tooltip title="Close" placement="top">
-          <IconButton size="small" onPointerDown={(e) => { e.stopPropagation(); onClose(); }}
-            sx={{ width: 30, height: 36, borderRadius: 2, color: '#475569', flexShrink: 0, '&:hover': { background: 'rgba(255,255,255,0.06)', color: '#94a3b8' } }}>
-            <CloseIcon sx={{ fontSize: 14 }} />
-          </IconButton>
-        </Tooltip>
-      </Paper>
+      </Box>
     </Fade>
   );
 }
@@ -1053,20 +1085,23 @@ export default function Chat() {
     };
   }, [translateText]);
 
-  // Auto-scroll
+  // Auto-scroll to bottom when new messages arrive, only if already near bottom
   useEffect(() => {
-    if (scrollBottom) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      setUnreadCount(0);
+    if (!scrollBottom) return;
+    const el = messagesBoxRef.current;
+    if (el) {
+      el.scrollTop = el.scrollHeight;
     }
-  }, [messages, scrollBottom]);
+    setUnreadCount(0);
+  }, [messages.length, scrollBottom]);
 
-  const handleScroll = (e) => {
-    const el = e.currentTarget;
-    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  const handleScroll = useCallback(() => {
+    const el = messagesBoxRef.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
     setScrollBottom(atBottom);
     if (atBottom) setUnreadCount(0);
-  };
+  }, []);
 
   // ── Join ──────────────────────────────────────────────────────────────────
   const joinChat = useCallback((name, lang) => {
@@ -1233,7 +1268,7 @@ export default function Chat() {
           )}
 
           {/* Main */}
-          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden', position: 'relative' }}>
 
             {/* Header */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, px: 2, py: 1.5, borderBottom: '1px solid rgba(255,255,255,0.06)', background: '#12131e', flexShrink: 0 }}>
@@ -1307,8 +1342,27 @@ export default function Chat() {
               </Box>
             )}
 
-            {/* Messages */}
-            <Box ref={messagesBoxRef} onScroll={handleScroll} sx={{ flex: 1, overflowY: 'auto', px: { xs: 1.5, sm: 2 }, py: 2, WebkitOverflowScrolling: 'touch' }}>
+            {/* Messages — ref AND onScroll must be on the same scrollable element */}
+            <Box
+              ref={messagesBoxRef}
+              onScroll={handleScroll}
+              sx={{
+                flex: 1,
+                overflowY: 'auto',
+                overflowX: 'hidden',
+                px: { xs: 1.5, sm: 2 },
+                pt: 2,
+                // Extra bottom padding so the last message is never hidden behind the input bar
+                pb: '80px',
+                WebkitOverflowScrolling: 'touch',
+                scrollBehavior: 'smooth',
+                // Custom scrollbar — thin, only on hover
+                '&::-webkit-scrollbar': { width: 4 },
+                '&::-webkit-scrollbar-track': { background: 'transparent' },
+                '&::-webkit-scrollbar-thumb': { background: 'rgba(255,255,255,0.07)', borderRadius: 99 },
+                '&::-webkit-scrollbar-thumb:hover': { background: 'rgba(255,255,255,0.14)' },
+              }}
+            >
               {messages.length === 0 && (
                 <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, textAlign: 'center', userSelect: 'none' }}>
                   <Typography sx={{ fontSize: 48, opacity: 0.2 }}>👾</Typography>
@@ -1350,19 +1404,43 @@ export default function Chat() {
               <Box ref={messagesEndRef} />
             </Box>
 
-            {/* Scroll to bottom button */}
-            {!scrollBottom && unreadCount > 0 && (
-              <Zoom in>
-                <Box sx={{ position: 'absolute', bottom: 90, left: '50%', transform: 'translateX(-50%)', zIndex: 10 }}>
-                  <Chip
-                    label={`${unreadCount} new message${unreadCount > 1 ? 's' : ''} ↓`}
-                    onClick={() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); setUnreadCount(0); }}
-                    icon={<KeyboardArrowDownIcon />}
-                    sx={{ background: '#6366f1', color: '#fff', cursor: 'pointer', fontWeight: 600, boxShadow: '0 4px 16px rgba(99,102,241,0.4)', '&:hover': { background: '#4f46e5' } }}
-                  />
+            {/* Scroll to bottom — fixed inside the relative main column, above input bar */}
+            <Zoom in={!scrollBottom}>
+              <Box
+                sx={{
+                  position: 'absolute',
+                  bottom: imagePreview ? 120 : 76,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  zIndex: 20,
+                  pointerEvents: scrollBottom ? 'none' : 'auto',
+                }}
+              >
+                <Box
+                  component="button"
+                  onClick={() => {
+                    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+                    setUnreadCount(0);
+                    setScrollBottom(true);
+                  }}
+                  sx={{
+                    display: 'flex', alignItems: 'center', gap: 0.75,
+                    px: 1.75, py: 0.75,
+                    background: 'linear-gradient(135deg,#6366f1,#9333ea)',
+                    color: '#fff', border: 'none', borderRadius: '20px',
+                    cursor: 'pointer', fontWeight: 700, fontSize: 12,
+                    boxShadow: '0 4px 20px rgba(99,102,241,0.5)',
+                    whiteSpace: 'nowrap',
+                    transition: 'transform 0.15s, box-shadow 0.15s',
+                    '&:hover': { transform: 'translateY(-1px)', boxShadow: '0 6px 24px rgba(99,102,241,0.65)' },
+                    '&:active': { transform: 'translateY(0)' },
+                  }}
+                >
+                  <KeyboardArrowDownIcon sx={{ fontSize: 16 }} />
+                  {unreadCount > 0 ? `${unreadCount} new` : 'Scroll down'}
                 </Box>
-              </Zoom>
-            )}
+              </Box>
+            </Zoom>
 
             {/* Image preview */}
             {imagePreview && (
