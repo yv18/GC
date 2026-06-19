@@ -1,1286 +1,1135 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
-  <meta name="apple-mobile-web-app-capable" content="yes"/>
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-  <meta name="theme-color" content="#0a0b14"/>
-  <title>GroupChat</title>
-
-  <!-- MUI Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
-
-  <style>
-    *, *::before, *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    html { height: 100%; overflow: hidden; background: #0a0b14; -webkit-text-size-adjust: 100%; }
-    body { height: 100%; margin: 0; padding: 0; overflow: hidden; background: #0a0b14;
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
-    #root { position: absolute; top: 0; left: 0; right: 0; bottom: 0; overflow: hidden; }
-    input, textarea, select { font-size: 16px !important; touch-action: manipulation; }
-    body { overscroll-behavior: none; }
-
-    ::-webkit-scrollbar { width: 4px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
-
-    @keyframes msgIn    { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
-    @keyframes bounce   { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
-    @keyframes pulse    { 0%,100%{opacity:1} 50%{opacity:0.4} }
-    @keyframes fall     { 0%{transform:translateY(-10px) rotate(0);opacity:1} 100%{transform:translateY(110vh) rotate(720deg);opacity:0} }
-    @keyframes popIn    { from{opacity:0;transform:scale(0.9)} to{opacity:1;transform:scale(1)} }
-    @keyframes rainbow  { 0%{background-position:0%} 100%{background-position:200%} }
-
-    .msg-in { animation: msgIn 0.2s ease both; }
-    .bounce { animation: bounce 1s infinite; }
-    .pulse  { animation: pulse 2s infinite; }
-    .pop    { animation: popIn 0.2s cubic-bezier(.34,1.56,.64,1) both; }
-    .rainbow-txt {
-      background: linear-gradient(90deg,#f97316,#ec4899,#8b5cf6,#06b6d4,#10b981,#f97316);
-      background-size: 200%; -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent; background-clip: text;
-      animation: rainbow 2s linear infinite;
-    }
-  </style>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="theme-color" content="#0a0b14"/>
+<title>GroupChat 👾</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#0a0b14;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;-webkit-text-size-adjust:100%}
+#app{position:absolute;top:0;left:0;right:0;bottom:0;overflow:hidden;background:#0a0b14}
+input,textarea,select{font-size:16px!important;touch-action:manipulation;-webkit-appearance:none}
+button{touch-action:manipulation;-webkit-tap-highlight-color:transparent;cursor:pointer}
+body{overscroll-behavior:none}
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:3px}
+@-webkit-keyframes msgIn{from{opacity:0;-webkit-transform:translateY(6px)}to{opacity:1;-webkit-transform:none}}
+@keyframes msgIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@-webkit-keyframes bounce{0%,100%{-webkit-transform:translateY(0)}50%{-webkit-transform:translateY(-4px)}}
+@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+@-webkit-keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@-webkit-keyframes fall{0%{opacity:1}100%{-webkit-transform:translateY(110vh) rotate(720deg);opacity:0}}
+@keyframes fall{0%{opacity:1}100%{transform:translateY(110vh) rotate(720deg);opacity:0}}
+@-webkit-keyframes popin{from{opacity:0;-webkit-transform:scale(.9)}to{opacity:1;-webkit-transform:scale(1)}}
+@keyframes popin{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}
+@-webkit-keyframes spin{to{-webkit-transform:rotate(360deg)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.msg-in{-webkit-animation:msgIn .2s ease both;animation:msgIn .2s ease both}
+.bounce{-webkit-animation:bounce 1s infinite;animation:bounce 1s infinite}
+.pulse{-webkit-animation:pulse 2s infinite;animation:pulse 2s infinite}
+.pop{-webkit-animation:popin .22s cubic-bezier(.34,1.56,.64,1) both;animation:popin .22s cubic-bezier(.34,1.56,.64,1) both}
+/* Layout */
+.shell{position:absolute;top:0;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center}
+.card{position:relative;width:100%;height:100%;display:flex;overflow:hidden;background:#131420}
+@media(min-width:768px){.card{max-width:1024px;max-height:94vh;height:94vh;border-radius:16px;border:1px solid rgba(255,255,255,.07);box-shadow:0 40px 120px rgba(0,0,0,.8)}}
+/* Sidebar */
+.sidebar{width:260px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;background:#12131e;border-right:1px solid rgba(255,255,255,.06)}
+@media(max-width:767px){.sidebar{position:absolute;top:0;bottom:0;left:0;z-index:300;-webkit-transform:translateX(-100%);transform:translateX(-100%);-webkit-transition:-webkit-transform .3s ease;transition:transform .3s ease}}
+.sidebar.open{-webkit-transform:translateX(0);transform:translateX(0)}
+/* Main */
+.main{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden;position:relative}
+/* Header */
+.hdr{display:flex;align-items:center;gap:8px;padding-top:max(10px,env(safe-area-inset-top));padding-bottom:10px;padding-left:14px;padding-right:14px;border-bottom:1px solid rgba(255,255,255,.06);background:#12131e;flex-shrink:0;min-height:52px}
+/* Messages */
+.msgs{flex:1;overflow-y:auto;overflow-x:hidden;padding:16px 14px 80px;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+/* Input bar */
+.inputbar{padding:8px 14px;padding-bottom:max(10px,env(safe-area-inset-bottom));background:#12131e;border-top:1px solid rgba(255,255,255,.06);flex-shrink:0}
+.inputrow{display:flex;align-items:center;gap:8px;background:#1a1b2e;border:1px solid rgba(255,255,255,.1);border-radius:24px;padding:6px 8px 6px 14px;min-height:48px;-webkit-transition:border-color .2s;transition:border-color .2s}
+.inputrow:focus-within{border-color:rgba(99,102,241,.5)}
+.inputfield{flex:1;background:transparent;border:none;outline:none;color:#fff;font-size:16px;font-family:inherit;padding:4px 0;min-width:0;resize:none}
+.inputfield::-webkit-input-placeholder{color:#475569}
+.sendbtn{width:36px;height:36px;border-radius:50%;border:none;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:16px;-webkit-transition:all .15s;transition:all .15s}
+.sendbtn.active{background:linear-gradient(135deg,#6366f1,#9333ea);color:#fff}
+.sendbtn.inactive{background:rgba(255,255,255,.05);color:#475569;opacity:.4;cursor:not-allowed}
+/* Bubbles */
+.bubble-row{display:flex;align-items:flex-start;gap:8px;margin-bottom:2px;-webkit-animation:msgIn .2s ease both;animation:msgIn .2s ease both}
+.bubble-row.me{flex-direction:row-reverse}
+.bubble-col{display:flex;flex-direction:column;max-width:75%}
+.bubble-col.me{align-items:flex-end}
+.bubble-col.them{align-items:flex-start}
+.bubble{padding:10px 14px;border-radius:18px;font-size:14px;line-height:1.55;word-break:break-word;white-space:pre-wrap}
+.bubble.me{background:linear-gradient(135deg,#6366f1,#9333ea);color:#fff;border-bottom-right-radius:4px;box-shadow:0 2px 14px rgba(99,102,241,.25)}
+.bubble.them{background:#1e1f2e;color:#fff;border:1px solid rgba(255,255,255,.07);border-bottom-left-radius:4px}
+.bubble.anon{background:linear-gradient(135deg,#374151,#1f2937);border:none}
+/* Reactions strip */
+.rx-picker{display:-webkit-inline-flex;display:inline-flex;flex-direction:row;align-items:center;gap:2px;padding:5px 8px;margin-top:4px;background:#1e2035;border:1px solid rgba(255,255,255,.12);border-radius:20px;box-shadow:0 4px 20px rgba(0,0,0,.5)}
+.rx-btn{width:36px;height:36px;font-size:21px;background:transparent;border:none;border-radius:50%;display:flex;align-items:center;justify-content:center;-webkit-transition:-webkit-transform .1s;transition:transform .1s;flex-shrink:0}
+.rx-btn:hover{-webkit-transform:scale(1.3);transform:scale(1.3)}
+.rx-chip{display:-webkit-inline-flex;display:inline-flex;align-items:center;gap:3px;padding:3px 9px;border-radius:99px;font-size:13px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.07);color:#fff;-webkit-transition:all .15s;transition:all .15s}
+.rx-chip.mine{background:rgba(99,102,241,.28);border-color:rgba(99,102,241,.5)}
+/* Typing dots */
+.typing-dot{width:6px;height:6px;border-radius:50%;background:#475569;display:inline-block;margin:0 2px}
+.typing-dot:nth-child(1){-webkit-animation:bounce 1s .0s infinite;animation:bounce 1s .0s infinite}
+.typing-dot:nth-child(2){-webkit-animation:bounce 1s .15s infinite;animation:bounce 1s .15s infinite}
+.typing-dot:nth-child(3){-webkit-animation:bounce 1s .3s infinite;animation:bounce 1s .3s infinite}
+/* Buttons */
+.btn{border:none;cursor:pointer;font-family:inherit;-webkit-transition:all .15s;transition:all .15s;touch-action:manipulation}
+.btn-primary{background:linear-gradient(135deg,#6366f1,#9333ea);color:#fff;font-weight:700;border-radius:12px;padding:13px;font-size:14px;width:100%}
+.btn-primary:disabled{background:rgba(255,255,255,.06);color:#334155;cursor:not-allowed}
+.btn-ghost{background:rgba(255,255,255,.06);color:#fff;border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:8px 14px;font-size:13px;font-weight:600}
+/* Icon buttons */
+.ibtn{width:30px;height:30px;border-radius:8px;border:none;background:transparent;display:flex;align-items:center;justify-content:center;font-size:16px;color:#64748b;-webkit-transition:all .15s;transition:all .15s}
+.ibtn:hover{background:rgba(255,255,255,.06);color:#94a3b8}
+/* Overlay */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);z-index:500;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal{background:#1a1b2e;border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:24px;width:100%;max-width:380px;max-height:85vh;overflow-y:auto}
+/* Online dot */
+.online-dot{width:9px;height:9px;border-radius:50%;border:2px solid #12131e;position:absolute;bottom:-1px;right:-1px}
+/* Confetti */
+.confetti-p{position:fixed;top:-20px;width:8px;height:8px;border-radius:2px;pointer-events:none;z-index:9999}
+/* Scroll btn */
+.scroll-btn{position:absolute;bottom:74px;left:50%;-webkit-transform:translateX(-50%);transform:translateX(-50%);z-index:20;display:flex;align-items:center;gap:6px;padding:7px 16px;background:linear-gradient(135deg,#6366f1,#9333ea);color:#fff;border:none;border-radius:20px;font-weight:700;font-size:12px;white-space:nowrap;box-shadow:0 4px 20px rgba(99,102,241,.5);touch-action:manipulation}
+/* Brain panel */
+.brain-panel{position:fixed;top:0;right:0;bottom:0;z-index:400;width:min(320px,90vw);background:#12131e;border-left:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;box-shadow:-8px 0 40px rgba(0,0,0,.5);overflow:hidden}
+/* Status */
+.status-menu{position:absolute;bottom:calc(100% + 4px);left:0;background:#0a0b14;border:1px solid rgba(255,255,255,.1);border-radius:12px;overflow:hidden;z-index:100;min-width:150px;box-shadow:0 8px 32px rgba(0,0,0,.5)}
+/* Toast */
+.toast{position:fixed;top:max(16px,env(safe-area-inset-top));left:50%;-webkit-transform:translateX(-50%);transform:translateX(-50%);z-index:9000;padding:10px 18px;border-radius:12px;font-weight:700;font-size:13px;color:#fff;white-space:nowrap;max-width:90vw;overflow:hidden;text-overflow:ellipsis;box-shadow:0 8px 32px rgba(0,0,0,.5);-webkit-animation:msgIn .2s ease;animation:msgIn .2s ease}
+/* Join screen */
+.join-wrap{position:absolute;inset:0;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding-top:max(48px,env(safe-area-inset-top));padding-bottom:max(24px,env(safe-area-inset-bottom));padding-left:16px;padding-right:16px;background:rgba(0,0,0,.92);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);z-index:9999}
+.join-card{background:#1a1b2e;border:1px solid rgba(255,255,255,.1);border-radius:24px;padding:28px;width:100%;max-width:340px;display:flex;flex-direction:column;align-items:center;gap:20px}
+/* Inputs */
+.inp{width:100%;padding:12px 14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:12px;color:#fff;font-size:16px;outline:none;font-family:inherit;box-sizing:border-box;-webkit-appearance:none}
+.inp:focus{border-color:rgba(99,102,241,.5)}
+/* Spinner */
+.spinner{width:16px;height:16px;border:2px solid rgba(99,102,241,.3);border-top-color:#6366f1;border-radius:50%;-webkit-animation:spin .8s linear infinite;animation:spin .8s linear infinite}
+</style>
 </head>
 <body>
-<div id="root"></div>
+<div id="app">
+  <div class="shell">
+    <div class="card" id="card">
+      <!-- Sidebar -->
+      <div class="sidebar" id="sidebar">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid rgba(255,255,255,.06)">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#6366f1,#9333ea);display:flex;align-items:center;justify-content:center;font-size:18px">👾</div>
+            <div>
+              <div style="color:#fff;font-weight:800;font-size:15px">GroupChat</div>
+              <div id="room-label" style="color:#475569;font-size:10px"># General</div>
+            </div>
+          </div>
+          <button class="ibtn" id="sb-close" onclick="toggleSidebar(false)">✕</button>
+        </div>
+        <div style="padding:12px 12px 0">
+          <button class="btn" style="display:flex;align-items:center;gap:8px;width:100%;padding:10px 14px;border-radius:14px;background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.2);color:#a5b4fc;font-weight:600;font-size:13px"
+            onclick="openRooms()">
+            🏠 Rooms <span id="room-tag" style="margin-left:auto;background:rgba(99,102,241,.3);border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700">General</span>
+          </button>
+        </div>
+        <div style="height:1px;background:rgba(255,255,255,.06);margin:12px 14px"></div>
+        <!-- You section -->
+        <div style="padding:0 14px 12px;border-bottom:1px solid rgba(255,255,255,.06)">
+          <div style="font-size:10px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px">You</div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="position:relative;cursor:pointer" onclick="toggleStatusMenu()">
+              <canvas id="my-avatar" width="64" height="64" style="width:36px;height:36px;border-radius:6px;image-rendering:pixelated;display:block"></canvas>
+              <div id="my-status-dot" class="online-dot" style="background:#22c55e"></div>
+            </div>
+            <div style="flex:1;min-width:0">
+              <div id="my-name-label" style="color:#e2e8f0;font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
+              <div id="my-status-label" style="font-size:11px;color:#22c55e">🟢 Online</div>
+            </div>
+          </div>
+          <div id="status-menu" class="status-menu" style="display:none"></div>
+        </div>
+        <!-- Online users -->
+        <div style="flex:1;overflow-y:auto;padding:10px 12px;-webkit-overflow-scrolling:touch">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div style="font-size:10px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:.1em">Online — <span id="online-count">0</span></div>
+            <div class="pulse" style="width:7px;height:7px;border-radius:50%;background:#22c55e"></div>
+          </div>
+          <div id="user-list"></div>
+        </div>
+      </div>
 
-<!-- Core libraries from CDN -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+      <!-- Main -->
+      <div class="main">
+        <!-- Header -->
+        <div class="hdr">
+          <button class="ibtn" id="hdr-menu" onclick="toggleSidebar(true)" style="display:none;font-size:18px;position:relative">
+            ☰ <span id="unread-badge" style="display:none;position:absolute;top:2px;right:2px;width:16px;height:16px;border-radius:50%;background:#6366f1;font-size:9px;font-weight:700;color:#fff;align-items:center;justify-content:center"></span>
+          </button>
+          <div style="width:32px;height:32px;border-radius:9px;background:#1e1f2e;border:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0">👾</div>
+          <div style="flex:1;min-width:0">
+            <div id="hdr-room" style="color:#e2e8f0;font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"># General</div>
+            <div id="hdr-sub" style="font-size:10px;color:#475569;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">0 online</div>
+          </div>
+          <button class="ibtn" id="anon-btn" onclick="toggleAnon()" title="Anonymous mode" style="font-size:16px">👻</button>
+          <button class="ibtn" onclick="openBrain()" title="Room Brain" style="background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.2);font-size:16px">🧠</button>
+          <div id="conn-dot" class="pulse" style="width:8px;height:8px;border-radius:50%;background:#22c55e;flex-shrink:0"></div>
+        </div>
+
+        <!-- Spectator banner -->
+        <div id="spec-banner" style="display:none;background:rgba(148,163,184,.06);border-bottom:1px solid rgba(148,163,184,.1);padding:7px 16px;text-align:center;color:#94a3b8;font-size:12px">
+          👁 Spectator Mode — invisible &amp; read-only
+        </div>
+
+        <!-- Messages -->
+        <div class="msgs" id="msgs" onscroll="onMsgsScroll()"></div>
+
+        <!-- Scroll to bottom -->
+        <button class="scroll-btn" id="scroll-btn" style="display:none" onclick="scrollToBottom()">↓ <span id="scroll-label">Scroll down</span></button>
+
+        <!-- Image preview -->
+        <div id="img-preview-bar" style="display:none;margin:0 14px 8px;padding:10px 12px;background:#1e1f2e;border:1px solid rgba(255,255,255,.1);border-radius:12px;display:none;align-items:center;gap:10px;flex-shrink:0">
+          <img id="img-preview-thumb" style="width:44px;height:44px;border-radius:8px;object-fit:cover;flex-shrink:0"/>
+          <div style="flex:1"><div style="color:#fff;font-size:13px;font-weight:600">Image ready</div><div style="color:#475569;font-size:11px;margin-top:2px">Enter to send</div></div>
+          <button onclick="clearImgPreview()" style="background:none;border:none;color:#64748b;font-size:18px;padding:4px;cursor:pointer">×</button>
+        </div>
+
+        <!-- Anon notice -->
+        <div id="anon-notice" style="display:none;padding:0 14px 6px;font-size:11px;color:#9ca3af;display:none;align-items:center;gap:4px">
+          👻 Sending as Anonymous
+        </div>
+
+        <!-- Input bar -->
+        <div class="inputbar" id="inputbar">
+          <div class="inputrow">
+            <label style="cursor:pointer;color:#475569;display:flex;align-items:center;padding:6px;border-radius:8px;flex-shrink:0;font-size:18px">
+              📎<input type="file" accept="image/*" id="file-input" style="display:none" onchange="handleFile(event)"/>
+            </label>
+            <input class="inputfield" id="msg-input" type="text" placeholder="Message the group…" onkeydown="onInputKey(event)" oninput="onInputChange(event)"/>
+            <button class="sendbtn inactive" id="send-btn" onclick="sendMessage()">➤</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Join screen -->
+  <div class="join-wrap" id="join-screen">
+    <div class="join-card pop">
+      <div style="position:relative;padding:12px;background:#0a0b14;border-radius:14px;border:1px solid rgba(255,255,255,.07)">
+        <canvas id="join-avatar" width="64" height="64" style="width:88px;height:88px;border-radius:6px;image-rendering:pixelated;display:block"></canvas>
+        <div style="position:absolute;bottom:-6px;right:-6px;font-size:20px">✨</div>
+      </div>
+      <div style="text-align:center">
+        <div style="color:#fff;font-weight:800;font-size:22px;letter-spacing:-.5px">Join GroupChat</div>
+        <div style="color:#475569;font-size:12px;margin-top:4px">Your pixel avatar is unique to your name</div>
+      </div>
+      <div style="width:100%;display:flex;flex-direction:column;gap:12px">
+        <input class="inp" id="join-name" type="text" placeholder="Your name…" maxlength="24" oninput="onJoinNameChange(event)" onkeydown="onJoinKey(event)" autocomplete="username"/>
+        <select class="inp" id="join-lang" style="background:#0f1019;cursor:pointer">
+          <option value="en">🇺🇸 English</option>
+          <option value="es">🇪🇸 Spanish</option>
+          <option value="fr">🇫🇷 French</option>
+          <option value="de">🇩🇪 German</option>
+          <option value="hi">🇮🇳 Hindi</option>
+          <option value="ja">🇯🇵 Japanese</option>
+          <option value="ar">🇸🇦 Arabic</option>
+          <option value="pt">🇧🇷 Portuguese</option>
+        </select>
+        <button class="btn btn-primary" id="join-btn" disabled onclick="joinChat()">Enter Chat →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rooms modal -->
+  <div class="overlay pop" id="rooms-modal" style="display:none">
+    <div class="modal">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <span style="color:#fff;font-weight:700;font-size:18px">🏠 Rooms</span>
+        <button onclick="closeRooms()" style="background:none;border:none;color:#64748b;font-size:22px;cursor:pointer;padding:4px">×</button>
+      </div>
+      <div style="display:flex;gap:4px;margin-bottom:20px;background:rgba(255,255,255,.04);border-radius:12px;padding:4px" id="room-tabs">
+        <button onclick="switchRoomTab('join')" id="tab-join" style="flex:1;padding:8px 4px;border-radius:9px;font-size:12px;font-weight:600;border:none;background:rgba(99,102,241,.3);color:#a5b4fc;cursor:pointer">Join</button>
+        <button onclick="switchRoomTab('create')" id="tab-create" style="flex:1;padding:8px 4px;border-radius:9px;font-size:12px;font-weight:600;border:none;background:transparent;color:#64748b;cursor:pointer">Create</button>
+        <button onclick="switchRoomTab('browse')" id="tab-browse" style="flex:1;padding:8px 4px;border-radius:9px;font-size:12px;font-weight:600;border:none;background:transparent;color:#64748b;cursor:pointer">Browse</button>
+      </div>
+      <div id="room-tab-content"></div>
+    </div>
+  </div>
+
+  <!-- Mod block modal -->
+  <div class="overlay" id="mod-modal" style="display:none">
+    <div class="modal pop" style="max-width:320px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:16px">
+      <div id="mod-icon" style="font-size:44px"></div>
+      <div style="color:#fff;font-weight:700;font-size:18px">Message Blocked</div>
+      <div id="mod-msg" style="color:#94a3b8;font-size:14px;line-height:1.5"></div>
+      <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:10px;padding:10px 14px;width:100%">
+        <span style="color:#f87171;font-size:12px">🛡️ This space is safe &amp; family-friendly</span>
+      </div>
+      <button class="btn btn-ghost" onclick="closeModModal()">Edit Message</button>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast" style="display:none"></div>
+
+  <!-- Brain panel -->
+  <div class="brain-panel" id="brain-panel" style="display:none">
+    <div style="padding:16px 20px;border-bottom:1px solid rgba(255,255,255,.07);display:flex;align-items:center;justify-content:space-between">
+      <div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">🧠</span><span style="color:#fff;font-weight:800;font-size:16px">Room Brain</span></div>
+      <button onclick="closeBrain()" style="background:none;border:none;color:#64748b;font-size:20px;cursor:pointer;padding:4px">×</button>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:16px;-webkit-overflow-scrolling:touch">
+      <div style="font-size:12px;color:#475569">AI-powered live summary of your conversation</div>
+      <div id="brain-mood" style="display:none;border-radius:12px;padding:12px 14px;display:none;align-items:center;gap:10px"></div>
+      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:16px">
+        <div style="font-size:10px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">What's happening</div>
+        <div id="brain-summary" style="color:#cbd5e1;font-size:13px;line-height:1.6">Click Refresh to analyze</div>
+      </div>
+      <div id="brain-topics-wrap" style="display:none">
+        <div style="font-size:10px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Hot Topics</div>
+        <div id="brain-topics" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px" id="brain-stats"></div>
+      <button class="btn" id="brain-refresh-btn" onclick="runBrain()" style="padding:12px;border-radius:12px;background:linear-gradient(135deg,#6366f1,#9333ea);color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;gap:8px">
+        🔄 Refresh Summary
+      </button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+var STATE = {
+  sender: '', lang: 'en', ready: false,
+  messages: [], users: [], typing: [],
+  connected: false, spectator: false, anon: false,
+  roomId: 'general', roomName: 'General',
+  imgPreview: null, unread: 0, atBottom: true,
+  status: 'online', cinId: null, confettiRunning: false,
+  pickerOpen: null, // msgId that has picker open
+};
 
-<script type="text/babel" data-presets="react">
-'use strict';
+var STATUSES = [
+  {v:'online',l:'Online',c:'#22c55e',e:'🟢'},
+  {v:'coding',l:'Coding',c:'#60a5fa',e:'👨‍💻'},
+  {v:'gaming',l:'Gaming',c:'#a78bfa',e:'🎮'},
+  {v:'music', l:'Music', c:'#f472b6',e:'🎵'},
+  {v:'afk',   l:'AFK',  c:'#94a3b8',e:'😴'},
+  {v:'busy',  l:'Busy', c:'#f87171',e:'🔴'},
+];
+var REACTIONS = ['👍','❤️','😂','😮','🔥','😢'];
+var BAD = [/fuck|shit|bitch|cunt|nigger|faggot/i, /kill\s*your?self|kys/i];
+var ILLEGAL = [/\b(buy|sell)\s+(drugs?|meth|cocaine|heroin)\b/i, /\b(ddos|ransomware)\b/i];
+var SEXUAL = [/\b(porn|nude|naked|xxx|nsfw|onlyfans)\b/i];
+var CONSEQUENCES = [
+  {t:/\b(damn|shit|fuck)\b/i, e:'flip',   m:'🙃 Flipped!'},
+  {t:/\b(lol|haha|lmao)\b/i,  e:'rainbow',m:'🌈 Rainbow!'},
+  {t:/spam/i,                  e:'tiny',   m:'🤏 Tiny text!'},
+];
 
-const { useState, useEffect, useRef, useCallback, useMemo } = React;
-
-// ── Socket ──────────────────────────────────────────────────────────────────
-const socket = io('https://gc-backend-1ksm.onrender.com', {
-  transports: ['websocket', 'polling'],
+// ── Socket ────────────────────────────────────────────────────────────────────
+var socket = io('https://gc-backend-1ksm.onrender.com', {
+  transports: ['websocket','polling'],
   reconnectionAttempts: 10,
   reconnectionDelay: 1000,
+  timeout: 10000,
 });
 
-// ── Pixel Avatar ────────────────────────────────────────────────────────────
-function seededRng(seed) {
-  let s = [...(seed||'?')].reduce((a,c)=>(a*31+c.charCodeAt(0))>>>0, 0x12345678);
-  return () => { s^=s<<13; s^=s>>17; s^=s<<5; return (s>>>0)/0xffffffff; };
-}
-const PAL = [
+socket.on('connect', function() {
+  STATE.connected = true;
+  updateConnDot();
+  showToast('Connected ✓', '#10b981');
+});
+socket.on('disconnect', function() {
+  STATE.connected = false;
+  updateConnDot();
+  showToast('Reconnecting…', '#f59e0b');
+});
+socket.on('chat history', function(history) {
+  STATE.messages = (history||[]).map(function(m){ return Object.assign({reactions:{}}, m, {id:m.id||makeId()}); });
+  renderMessages();
+  scrollToBottom();
+});
+socket.on('chat message', function(data) {
+  var msg = Object.assign({reactions:{}}, data, {id:data.id||makeId()});
+  if (data.sender !== STATE.sender && msg.message) {
+    var lc = msg.message.toLowerCase();
+    if (lc.indexOf(STATE.sender.toLowerCase()) !== -1) {
+      showToast('📣 ' + data.sender + ' mentioned you', '#6366f1');
+    }
+    if (!STATE.atBottom) {
+      STATE.unread++;
+      updateScrollBtn();
+    }
+  }
+  if (STATE.lang !== 'en' && msg.message) {
+    translateText(msg.message, STATE.lang, function(t) {
+      if (t) msg.translate = t;
+      STATE.messages.push(msg);
+      renderMessages();
+      if (STATE.atBottom) scrollToBottom();
+    });
+  } else {
+    STATE.messages.push(msg);
+    renderMessages();
+    if (STATE.atBottom) scrollToBottom();
+  }
+});
+socket.on('reaction update', function(data) {
+  var msgId = data.msgId, rxs = data.reactions;
+  for (var i=0; i<STATE.messages.length; i++) {
+    if (STATE.messages[i].id === msgId) {
+      STATE.messages[i].reactions = rxs;
+      break;
+    }
+  }
+  renderMessages();
+});
+socket.on('typing', function(data) {
+  var s = data.sender;
+  if (s !== STATE.sender && STATE.typing.indexOf(s) === -1) STATE.typing.push(s);
+  updateTypingIndicator();
+});
+socket.on('stop typing', function(data) {
+  var s = data.sender;
+  STATE.typing = STATE.typing.filter(function(u){ return u !== s; });
+  updateTypingIndicator();
+});
+socket.on('user list', function(users) {
+  STATE.users = users || [];
+  renderUserList();
+  updateHdrSub();
+});
+socket.on('cinematic moment', function(data) {
+  STATE.cinId = data.msgId;
+  showToast('🎬 Cinematic Moment! 🎉', '#f59e0b');
+  launchConfetti();
+  renderMessages();
+  setTimeout(function(){ STATE.cinId = null; renderMessages(); }, 5000);
+});
+socket.on('room joined', function(data) {
+  STATE.roomId = data.room; STATE.roomName = data.name;
+  STATE.spectator = !!data.spectator;
+  STATE.messages = [];
+  closeRooms();
+  renderMessages();
+  updateRoomUI();
+  showToast((STATE.spectator ? '👁 Joined #' : '🏠 Joined #') + data.name, '#10b981');
+});
+socket.on('room created', function(data) { handleRoomCreated(data); });
+socket.on('room list', function(list) { handleRoomList(list); });
+socket.on('error', function(msg) { showToast(msg, '#ef4444'); });
+
+// ── Pixel Avatar ──────────────────────────────────────────────────────────────
+var PAL = [
   ['#6366f1','#818cf8','#c7d2fe','#1e1b4b'],['#ec4899','#f472b6','#fce7f3','#500724'],
   ['#10b981','#34d399','#d1fae5','#064e3b'],['#f59e0b','#fbbf24','#fef3c7','#451a03'],
   ['#3b82f6','#60a5fa','#dbeafe','#1e3a8a'],['#8b5cf6','#a78bfa','#ede9fe','#2e1065'],
   ['#ef4444','#f87171','#fee2e2','#450a0a'],['#14b8a6','#2dd4bf','#ccfbf1','#042f2e'],
   ['#f97316','#fb923c','#ffedd5','#431407'],['#06b6d4','#22d3ee','#cffafe','#0c4a6e'],
 ];
+function seededRng(seed) {
+  var s = 0x12345678;
+  for (var i=0; i<seed.length; i++) s = ((s*31 + seed.charCodeAt(i)) >>> 0);
+  return function() { s ^= s<<13; s ^= s>>17; s ^= s<<5; return (s>>>0)/0xffffffff; };
+}
 function buildGrid(name) {
-  const r = seededRng(name); const p = PAL[Math.floor(r()*PAL.length)];
-  const g = [];
-  for (let i=0;i<8;i++){const h=[];for(let j=0;j<4;j++){const v=r();h.push(v<.3?p[3]:v<.6?p[0]:v<.8?p[1]:v<.92?p[2]:null);}g.push([...h,...[...h].reverse()]);}
-  return {g,p};
+  var r = seededRng(name||'?');
+  var p = PAL[Math.floor(r()*PAL.length)];
+  var g = [];
+  for (var i=0; i<8; i++) {
+    var h=[];
+    for (var j=0; j<4; j++) { var v=r(); h.push(v<.3?p[3]:v<.6?p[0]:v<.8?p[1]:v<.92?p[2]:null); }
+    g.push(h.concat(h.slice().reverse()));
+  }
+  return {g:g, p:p};
 }
-function PixelAvatar({name,size=36,ring=false,ghost=false}) {
-  const {g,p} = buildGrid(name||'?');
-  const ref = useRef(null);
-  useEffect(()=>{
-    const c=ref.current; if(!c) return;
-    const ctx=c.getContext('2d'); const cell=c.width/8;
-    ctx.clearRect(0,0,c.width,c.height);
-    ctx.fillStyle=p[3]; ctx.fillRect(0,0,c.width,c.height);
-    g.forEach((row,r)=>row.forEach((col,ci)=>{if(col){ctx.fillStyle=col;ctx.fillRect(ci*cell,r*cell,cell,cell);}}));
-  },[name]);
-  return (
-    <div style={{flexShrink:0,opacity:ghost?0.4:1,filter:ghost?'grayscale(1)':'none'}}>
-      <canvas ref={ref} width={64} height={64} style={{
-        width:size,height:size,borderRadius:6,imageRendering:'pixelated',display:'block',
-        boxShadow:ring?`0 0 0 2px ${p[0]}, 0 0 16px ${p[0]}55`:'none',
-      }}/>
-    </div>
-  );
+function drawAvatar(canvas, name, size) {
+  if (!canvas) return;
+  var d = buildGrid(name||'?');
+  canvas.width = 64; canvas.height = 64;
+  canvas.style.width = size+'px'; canvas.style.height = size+'px';
+  var ctx = canvas.getContext('2d');
+  var cell = 8;
+  ctx.fillStyle = d.p[3]; ctx.fillRect(0,0,64,64);
+  for (var r=0; r<8; r++) for (var c=0; c<8; c++) {
+    if (d.g[r][c]) { ctx.fillStyle=d.g[r][c]; ctx.fillRect(c*cell,r*cell,cell,cell); }
+  }
 }
-function accent(name){const r=seededRng(name||'?');return PAL[Math.floor(r()*PAL.length)][0];}
+function makeAvatarHTML(name, size, ghost, ring) {
+  var d = buildGrid(name||'?');
+  var id = 'av-'+Math.random().toString(36).slice(2,8);
+  // Inline SVG — works everywhere without canvas context issues
+  var cells = '';
+  for (var r=0; r<8; r++) for (var c=0; c<8; c++) {
+    if (d.g[r][c]) cells += '<rect x="'+c+'" y="'+r+'" width="1" height="1" fill="'+d.g[r][c]+'"/>';
+  }
+  var shadow = ring ? '0 0 0 2px '+d.p[0]+', 0 0 14px '+d.p[0]+'55' : 'none';
+  return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 8 8" style="border-radius:6px;image-rendering:pixelated;display:block;box-shadow:'+shadow+';flex-shrink:0;opacity:'+(ghost?.4:1)+';filter:'+(ghost?'grayscale(1)':'none')+'">'
+    +'<rect width="8" height="8" fill="'+d.p[3]+'"/>'+cells+'</svg>';
+}
+function accentColor(name) {
+  var r = seededRng(name||'?'); return PAL[Math.floor(r()*PAL.length)][0];
+}
 
-// ── Constants ────────────────────────────────────────────────────────────────
-const REACTIONS = ['👍','❤️','😂','😮','🔥','😢'];
-const STATUSES = [
-  {v:'online',l:'Online',c:'#22c55e',e:'🟢'},{v:'coding',l:'Coding',c:'#60a5fa',e:'👨‍💻'},
-  {v:'gaming',l:'Gaming',c:'#a78bfa',e:'🎮'},{v:'music',l:'Music',c:'#f472b6',e:'🎵'},
-  {v:'afk',l:'AFK',c:'#94a3b8',e:'😴'},{v:'busy',l:'Busy',c:'#f87171',e:'🔴'},
-];
-const LANGS = [
-  {c:'en',l:'🇺🇸 English'},{c:'es',l:'🇪🇸 Spanish'},{c:'fr',l:'🇫🇷 French'},
-  {c:'de',l:'🇩🇪 German'},{c:'hi',l:'🇮🇳 Hindi'},{c:'ja',l:'🇯🇵 Japanese'},
-  {c:'ar',l:'🇸🇦 Arabic'},{c:'pt',l:'🇧🇷 Portuguese'},
-];
-const CONSEQUENCES = [
-  {t:/\b(damn|shit|fuck)\b/i,e:'flip',msg:'🙃 Flipped!'  },
-  {t:/\b(lol|haha|lmao)\b/i, e:'rainbow',msg:'🌈 Rainbow!'},
-  {t:/spam/i,                 e:'tiny',msg:'🤏 Tiny text!'},
-];
-const BAD_WORDS   = [/\b(fuck|shit|ass|bitch|cunt|dick|pussy|nigger|faggot)\b/gi, /\b(kill\s*your?self|kys)\b/gi];
-const ILLEGAL     = [/\b(buy|sell)\s+(drugs?|meth|cocaine|heroin)\b/gi, /\b(ddos|ransomware|malware)\b/gi];
-const SEXUAL      = [/\b(porn|nude|naked|xxx|nsfw|onlyfans)\b/gi];
+// ── Utils ─────────────────────────────────────────────────────────────────────
+var _mid = 0;
+function makeId() { return 'm'+Date.now()+'_'+(++_mid); }
+function nowTime() { return new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); }
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 function moderate(text) {
-  for (const p of BAD_WORDS) if(new RegExp(p.source,p.flags).test(text)) return {blocked:true,reason:'profanity',msg:'Hate speech or profanity is not allowed here.'};
-  for (const p of ILLEGAL)   if(new RegExp(p.source,p.flags).test(text)) return {blocked:true,reason:'illegal',msg:'Discussion of illegal activities is not allowed.'};
-  for (const p of SEXUAL)    if(new RegExp(p.source,p.flags).test(text)) return {blocked:true,reason:'sexual',msg:'Sexual content is not allowed in this space.'};
+  for (var i=0;i<BAD.length;i++) if(BAD[i].test(text)) return {blocked:true,reason:'profanity',msg:'Hate speech or profanity is not allowed here.'};
+  for (var i=0;i<ILLEGAL.length;i++) if(ILLEGAL[i].test(text)) return {blocked:true,reason:'illegal',msg:'Discussion of illegal activities is not allowed.'};
+  for (var i=0;i<SEXUAL.length;i++) if(SEXUAL[i].test(text)) return {blocked:true,reason:'sexual',msg:'Sexual content is not allowed in this space.'};
   return {blocked:false};
 }
-const now = () => new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
-let mid = 0;
-const makeId = () => `m${Date.now()}_${mid++}`;
-const formatTime = now;
-
-// ── Confetti ─────────────────────────────────────────────────────────────────
-function Confetti({onDone}) {
-  const pts = useMemo(()=>Array.from({length:60},(_,i)=>({
-    id:i,x:Math.random()*100,
-    col:['#6366f1','#ec4899','#f59e0b','#10b981','#f97316','#8b5cf6'][i%6],
-    sz:6+Math.random()*8,dl:Math.random(),dr:1.8+Math.random()*0.8,
-  })),[]);
-  useEffect(()=>{const t=setTimeout(onDone,4000);return()=>clearTimeout(t);},[]);
-  return (
-    <div style={{position:'fixed',inset:0,pointerEvents:'none',zIndex:9999,overflow:'hidden'}}>
-      {pts.map(p=><div key={p.id} style={{position:'absolute',left:`${p.x}%`,top:-20,width:p.sz,height:p.sz,borderRadius:2,background:p.col,animation:`fall ${p.dr}s ${p.dl}s ease-in forwards`}}/>)}
-    </div>
-  );
+function translateText(text, lang, cb) {
+  var url = 'https://api.mymemory.translated.net/get?q='+encodeURIComponent(text.slice(0,300))+'&langpair=en|'+lang;
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', url, true);
+  xhr.onload = function() {
+    try { var d=JSON.parse(xhr.responseText); var t=d.responseData.translatedText; cb(t&&t!==text?t:null); }
+    catch(e) { cb(null); }
+  };
+  xhr.onerror = function() { cb(null); };
+  xhr.send();
 }
 
-// ── Toast ────────────────────────────────────────────────────────────────────
-function Toast({msg,sev,onClose}) {
-  const bg={success:'#10b981',error:'#ef4444',warning:'#f59e0b',info:'#6366f1'}[sev]||'#6366f1';
-  useEffect(()=>{const t=setTimeout(onClose,4000);return()=>clearTimeout(t);},[]);
-  return (
-    <div style={{position:'fixed',top:20,left:'50%',transform:'translateX(-50%)',zIndex:9000,
-      background:bg,color:'#fff',padding:'10px 18px',borderRadius:12,fontWeight:700,
-      fontSize:13,boxShadow:'0 8px 32px rgba(0,0,0,0.5)',whiteSpace:'nowrap',
-      maxWidth:'90vw',overflow:'hidden',textOverflow:'ellipsis',
-      animation:'msgIn .2s ease'}}>
-      {msg}
-    </div>
-  );
+// ── Toast ─────────────────────────────────────────────────────────────────────
+var _toastTimer = null;
+function showToast(msg, bg) {
+  var el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.background = bg||'#6366f1';
+  el.style.display = 'block';
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(function(){ el.style.display='none'; }, 3500);
 }
 
-// ── Reaction Picker ──────────────────────────────────────────────────────────
-function ReactionPicker({onPick,onClose,isMe}) {
-  const ref = useRef(null);
-  useEffect(()=>{
-    const id=setTimeout(()=>{
-      const h=e=>{if(ref.current&&!ref.current.contains(e.target))onClose();};
-      document.addEventListener('pointerdown',h,true);
-      return()=>document.removeEventListener('pointerdown',h,true);
-    },60);
-    return()=>clearTimeout(id);
-  },[]);
-  return (
-    <div ref={ref} style={{
-      display:'inline-flex',flexDirection:'row',alignItems:'center',
-      gap:2,padding:'5px 8px',marginTop:4,
-      background:'#1e2035',border:'1px solid rgba(255,255,255,0.12)',
-      borderRadius:20,boxShadow:'0 4px 20px rgba(0,0,0,0.5)',
-      alignSelf:isMe?'flex-end':'flex-start',
-    }}>
-      {REACTIONS.map(e=>(
-        <button key={e} onPointerDown={ev=>{ev.stopPropagation();onPick(e);onClose();}}
-          style={{width:36,height:36,fontSize:21,background:'transparent',border:'none',
-            cursor:'pointer',borderRadius:'50%',display:'flex',alignItems:'center',
-            justifyContent:'center',transition:'transform .1s',flexShrink:0}}
-          onMouseEnter={ev=>ev.currentTarget.style.transform='scale(1.35)'}
-          onMouseLeave={ev=>ev.currentTarget.style.transform='scale(1)'}>
-          {e}
-        </button>
-      ))}
-    </div>
-  );
+// ── Join ──────────────────────────────────────────────────────────────────────
+function onJoinNameChange(e) {
+  var v = e.target.value.trim();
+  document.getElementById('join-btn').disabled = !v;
+  drawAvatar(document.getElementById('join-avatar'), v||'You', 88);
+}
+function onJoinKey(e) { if(e.key==='Enter') joinChat(); }
+function joinChat() {
+  var name = document.getElementById('join-name').value.trim();
+  var lang = document.getElementById('join-lang').value;
+  if (!name) return;
+  STATE.sender = name; STATE.lang = lang;
+  STATE.ready = true;
+  sessionStorage.setItem('gc_name', name);
+  sessionStorage.setItem('gc_lang', lang);
+  document.getElementById('join-screen').style.display = 'none';
+  document.getElementById('my-name-label').textContent = name;
+  drawAvatar(document.getElementById('my-avatar'), name, 36);
+  updateStatusMenu();
+  checkMobile();
+  socket.emit('join', {username:name, room:'general'});
+  if (Notification && Notification.permission==='default') Notification.requestPermission();
+}
+// Session restore
+(function() {
+  var n = sessionStorage.getItem('gc_name');
+  var l = sessionStorage.getItem('gc_lang')||'en';
+  if (n) {
+    document.getElementById('join-name').value = n;
+    document.getElementById('join-lang').value = l;
+    document.getElementById('join-btn').disabled = false;
+    drawAvatar(document.getElementById('join-avatar'), n, 88);
+  }
+})();
+
+// ── Mobile detection ──────────────────────────────────────────────────────────
+function checkMobile() {
+  var mob = window.innerWidth < 768;
+  var menuBtn = document.getElementById('hdr-menu');
+  var sbClose = document.getElementById('sb-close');
+  menuBtn.style.display = mob ? 'flex' : 'none';
+  sbClose.style.display = mob ? 'flex' : 'none';
+}
+checkMobile();
+window.addEventListener('resize', checkMobile);
+
+// ── Sidebar ───────────────────────────────────────────────────────────────────
+function toggleSidebar(open) {
+  var sb = document.getElementById('sidebar');
+  if (open) sb.classList.add('open'); else sb.classList.remove('open');
+}
+document.addEventListener('click', function(e) {
+  var sb = document.getElementById('sidebar');
+  if (window.innerWidth >= 768) return;
+  if (!sb.classList.contains('open')) return;
+  if (sb.contains(e.target)) return;
+  if (document.getElementById('hdr-menu').contains(e.target)) return;
+  sb.classList.remove('open');
+});
+
+// ── User list ─────────────────────────────────────────────────────────────────
+function renderUserList() {
+  var el = document.getElementById('user-list');
+  var html = '';
+  var visible = STATE.users.filter(function(u){ return !u.spectator; });
+  document.getElementById('online-count').textContent = visible.length;
+  STATE.users.forEach(function(u) {
+    var st = STATUSES.filter(function(s){ return s.v===u.status; })[0] || STATUSES[0];
+    html += '<div style="display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:12px;margin-bottom:2px">'
+      + '<div style="position:relative">' + makeAvatarHTML(u.username,30,u.spectator,false)
+      + '<div style="position:absolute;bottom:-1px;right:-1px;width:9px;height:9px;border-radius:50%;background:'+st.c+';border:2px solid #12131e"></div></div>'
+      + '<div style="min-width:0;flex:1"><div style="color:'+(u.username===STATE.sender?'#a5b4fc':'#e2e8f0')+';font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'
+      + esc(u.username)+(u.spectator?' 👁':'')+'</div>'
+      + '<div style="font-size:10px;color:'+st.c+'">'+st.e+' '+st.l+'</div></div></div>';
+  });
+  if (!STATE.users.length) html = '<div style="color:#334155;font-size:12px;text-align:center;padding:16px">No one else here yet</div>';
+  el.innerHTML = html;
 }
 
-// ── Message Bubble ───────────────────────────────────────────────────────────
-function Bubble({msg,isMe,showAv,showName,onReact,myName,spectator,cinId}) {
-  const [picker,setPicker] = useState(false);
-  const [hov,setHov]       = useState(false);
-  const lpRef              = useRef(null);
-  const isCin              = cinId===msg.id;
-  const rx                 = Object.entries(msg.reactions||{}).filter(([,u])=>u.length>0);
-  const myRx               = rx.filter(([,u])=>u.includes(myName)).map(([e])=>e);
+// ── Status ────────────────────────────────────────────────────────────────────
+function updateStatusMenu() {
+  var el = document.getElementById('status-menu');
+  var html = '';
+  STATUSES.forEach(function(s) {
+    html += '<button onclick="setStatus(\''+s.v+'\')" style="display:flex;align-items:center;gap:8px;padding:8px 12px;width:100%;background:'+(STATE.status===s.v?'rgba(99,102,241,.15)':'transparent')+';border:none;cursor:pointer;color:'+s.c+';font-size:13px;font-weight:600;font-family:inherit">'+s.e+' '+s.l+'</button>';
+  });
+  el.innerHTML = html;
+}
+function toggleStatusMenu() {
+  var el = document.getElementById('status-menu');
+  el.style.display = el.style.display==='none' ? 'block' : 'none';
+}
+function setStatus(v) {
+  STATE.status = v;
+  var st = STATUSES.filter(function(s){ return s.v===v; })[0]||STATUSES[0];
+  document.getElementById('my-status-dot').style.background = st.c;
+  document.getElementById('my-status-label').textContent = st.e+' '+st.l;
+  document.getElementById('my-status-label').style.color = st.c;
+  document.getElementById('status-menu').style.display = 'none';
+  socket.emit('status', {status:v});
+  updateStatusMenu();
+}
+document.addEventListener('click', function(e) {
+  var sm = document.getElementById('status-menu');
+  var myAv = document.querySelector('#sidebar [onclick="toggleStatusMenu()"]');
+  if (sm.style.display!=='none' && myAv && !myAv.contains(e.target)) sm.style.display='none';
+});
 
-  let efStyle = {};
-  if(msg.effect==='flip')  efStyle={transform:'scaleY(-1)',display:'inline-block'};
-  if(msg.effect==='tiny')  efStyle={fontSize:9};
-
-  return (
-    <div className="msg-in"
-      onMouseEnter={()=>!spectator&&setHov(true)}
-      onMouseLeave={()=>setHov(false)}
-      style={{
-        display:'flex',alignItems:'flex-start',gap:8,
-        flexDirection:isMe?'row-reverse':'row',
-        filter:isCin?'drop-shadow(0 0 18px #f59e0b)':'none',
-        transition:'filter .3s',marginBottom:2,
-      }}>
-
-      {/* Avatar slot */}
-      <div style={{width:32,flexShrink:0,paddingTop:2}}>
-        {!isMe&&showAv&&<PixelAvatar name={msg.isAnon?'Ghost':msg.sender} size={28} ghost={msg.isAnon}/>}
-      </div>
-
-      {/* Bubble column */}
-      <div style={{display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',maxWidth:'75%'}}>
-
-        {showName&&!isMe&&(
-          <div style={{fontSize:11,fontWeight:700,marginBottom:3,paddingLeft:2,color:accent(msg.isAnon?'Ghost':msg.sender)}}>
-            {msg.isAnon?'👻 Mystery Guest':msg.sender}
-          </div>
-        )}
-
-        {/* Bubble row with react button */}
-        <div style={{display:'flex',alignItems:'flex-start',gap:6,flexDirection:isMe?'row-reverse':'row'}}>
-
-          {/* Hover react button */}
-          {hov&&!picker&&!spectator&&(
-            <button onPointerDown={e=>{e.stopPropagation();setPicker(true);}}
-              style={{width:26,height:26,borderRadius:'50%',background:'#1a1b2e',
-                border:'1px solid rgba(255,255,255,0.14)',cursor:'pointer',
-                display:'flex',alignItems:'center',justifyContent:'center',
-                fontSize:13,flexShrink:0,marginTop:6,
-                boxShadow:'0 2px 8px rgba(0,0,0,0.4)'}}>
-              😊
-            </button>
-          )}
-
-          {/* Bubble */}
-          <div
-            onTouchStart={()=>{if(!spectator)lpRef.current=setTimeout(()=>setPicker(true),420);}}
-            onTouchEnd={()=>clearTimeout(lpRef.current)}
-            onTouchMove={()=>clearTimeout(lpRef.current)}
-            style={{
-              padding:'10px 14px',borderRadius:18,fontSize:14,lineHeight:1.55,
-              wordBreak:'break-word',whiteSpace:'pre-wrap',
-              background:msg.isAnon?'linear-gradient(135deg,#374151,#1f2937)':
-                isMe?'linear-gradient(135deg,#6366f1,#9333ea)':'#1e1f2e',
-              color:'#fff',
-              borderBottomRightRadius:isMe?4:18,
-              borderBottomLeftRadius:isMe?18:4,
-              border:(isMe||msg.isAnon)?'none':'1px solid rgba(255,255,255,0.07)',
-              boxShadow:isMe?'0 2px 14px rgba(99,102,241,0.25)':'none',
-            }}>
-            <span className={msg.effect==='rainbow'?'rainbow-txt':''} style={efStyle}>
-              {msg.message}
-            </span>
-            {msg.translate&&(
-              <div style={{fontSize:11,color:'rgba(255,255,255,0.4)',marginTop:4,fontStyle:'italic'}}>
-                🌐 {msg.translate}
-              </div>
-            )}
-            {msg.image&&(
-              <img src={msg.image} alt="shared"
-                style={{maxWidth:200,borderRadius:10,marginTop:6,display:'block',cursor:'zoom-in'}}/>
-            )}
-          </div>
-        </div>
-
-        {/* Reaction picker — inline below bubble */}
-        {picker&&(
-          <ReactionPicker
-            onPick={e=>{onReact(msg.id,e);setPicker(false);setHov(false);}}
-            onClose={()=>{setPicker(false);setHov(false);}}
-            isMe={isMe}
-          />
-        )}
-
-        {/* Reaction chips */}
-        {rx.length>0&&(
-          <div style={{display:'flex',flexWrap:'wrap',gap:4,marginTop:5,
-            justifyContent:isMe?'flex-end':'flex-start'}}>
-            {rx.map(([e,users])=>(
-              <button key={e} onPointerDown={()=>!spectator&&onReact(msg.id,e)}
-                title={users.join(', ')}
-                style={{display:'flex',alignItems:'center',gap:3,padding:'3px 9px',
-                  borderRadius:99,fontSize:13,cursor:spectator?'default':'pointer',
-                  background:myRx.includes(e)?'rgba(99,102,241,0.28)':'rgba(255,255,255,0.07)',
-                  border:`1px solid ${myRx.includes(e)?'rgba(99,102,241,0.5)':'rgba(255,255,255,0.1)'}`,
-                  color:'#fff',transition:'all .15s',touchAction:'manipulation'}}>
-                {e}<span style={{fontSize:11,fontWeight:700,color:'#94a3b8'}}>{users.length}</span>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Time */}
-        <div style={{display:'flex',alignItems:'center',gap:4,marginTop:3,
-          flexDirection:isMe?'row-reverse':'row',paddingLeft:2}}>
-          <span style={{fontSize:10,color:'rgba(255,255,255,0.22)'}}>{msg.time}</span>
-          {isMe&&<span style={{fontSize:12,color:'#818cf8'}}>✓✓</span>}
-        </div>
-      </div>
-    </div>
-  );
+// ── Anon toggle ───────────────────────────────────────────────────────────────
+function toggleAnon() {
+  STATE.anon = !STATE.anon;
+  var btn = document.getElementById('anon-btn');
+  var notice = document.getElementById('anon-notice');
+  btn.style.background = STATE.anon ? 'rgba(107,114,128,.25)' : 'transparent';
+  btn.style.border = STATE.anon ? '1px solid rgba(107,114,128,.4)' : 'none';
+  notice.style.display = STATE.anon ? 'flex' : 'none';
 }
 
-// ── Rooms Modal ──────────────────────────────────────────────────────────────
-function RoomsModal({onClose,onJoin,username}) {
-  const [tab,setTab]   = useState('join');
-  const [code,setCode] = useState('');
-  const [pass,setPass] = useState('');
-  const [rname,setRname]=useState('');
-  const [rpass,setRpass]=useState('');
-  const [spec,setSpec] = useState(false);
-  const [created,setCreated]=useState(null);
-  const [copied,setCopied]=useState(false);
-  const [rooms,setRooms]=useState([]);
+// ── Room UI update ────────────────────────────────────────────────────────────
+function updateRoomUI() {
+  var n = STATE.roomName;
+  document.getElementById('hdr-room').textContent = '# '+n;
+  document.getElementById('room-label').textContent = '# '+n;
+  document.getElementById('room-tag').textContent = STATE.roomId==='general'?'General':'Private';
+  document.getElementById('spec-banner').style.display = STATE.spectator ? 'block' : 'none';
+  document.getElementById('inputbar').style.display = STATE.spectator ? 'none' : 'block';
+}
+function updateHdrSub() {
+  var el = document.getElementById('hdr-sub');
+  var typLabel = STATE.typing.length===1 ? STATE.typing[0]+' is typing…'
+    : STATE.typing.length>1 ? STATE.typing.slice(0,2).join(' & ')+' are typing…'
+    : STATE.users.length+' online';
+  el.textContent = typLabel;
+  el.style.color = STATE.typing.length ? '#f59e0b' : '#475569';
+  el.style.fontStyle = STATE.typing.length ? 'italic' : 'normal';
+}
+function updateConnDot() {
+  var el = document.getElementById('conn-dot');
+  el.style.background = STATE.connected ? '#22c55e' : '#ef4444';
+  el.style.animationName = STATE.connected ? 'pulse' : 'none';
+}
 
-  useEffect(()=>{
-    socket.emit('list rooms');
-    socket.on('room list',setRooms);
-    socket.on('room created',d=>setCreated(d));
-    return()=>{socket.off('room list');socket.off('room created');};
-  },[]);
+// ── Messages render ───────────────────────────────────────────────────────────
+function renderMessages() {
+  var el = document.getElementById('msgs');
+  if (!STATE.messages.length) {
+    el.innerHTML = '<div style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;user-select:none">'
+      +'<div style="font-size:48px;opacity:.2">👾</div>'
+      +'<div style="color:#475569;font-size:14px">No messages yet — say hello!</div>'
+      +'<div style="display:flex;flex-wrap:wrap;justify-content:center;gap:6px">'
+      +'<span style="font-size:11px;background:rgba(255,255,255,.04);color:#475569;border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:3px 9px">Hover to react 😊</span>'
+      +'<span style="font-size:11px;background:rgba(255,255,255,.04);color:#475569;border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:3px 9px">5 reactions = 🎉</span>'
+      +'<span style="font-size:11px;background:rgba(255,255,255,.04);color:#475569;border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:3px 9px">👻 Anon mode</span>'
+      +'<span style="font-size:11px;background:rgba(255,255,255,.04);color:#475569;border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:3px 9px">🏠 Private rooms</span>'
+      +'</div></div>';
+    return;
+  }
+  var html = '';
+  STATE.messages.forEach(function(msg, idx) {
+    var isMe = msg.sender === STATE.sender;
+    var prev = STATE.messages[idx-1];
+    var showAv = !isMe && msg.sender !== (prev && prev.sender);
+    var gap = idx>0 && msg.sender===(prev&&prev.sender) ? 2 : 12;
+    var isCin = STATE.cinId === msg.id;
 
-  const create=()=>{if(!rname.trim())return;socket.emit('create room',{name:rname.trim(),password:rpass,username});};
-  const copy=()=>{navigator.clipboard?.writeText(created.roomId).catch(()=>{});setCopied(true);setTimeout(()=>setCopied(false),2000);};
+    var rx = Object.keys(msg.reactions||{}).filter(function(e){ return msg.reactions[e].length>0; });
 
-  const inputStyle={width:'100%',padding:'12px 14px',background:'rgba(255,255,255,0.05)',
-    border:'1px solid rgba(255,255,255,0.12)',borderRadius:12,color:'#fff',
-    fontSize:16,outline:'none',boxSizing:'border-box'};
-  const btnStyle=(active,col='#6366f1')=>({
-    width:'100%',padding:13,borderRadius:12,fontWeight:700,fontSize:14,border:'none',
-    cursor:active?'pointer':'not-allowed',
-    background:active?`linear-gradient(135deg,${col},${col==='#6366f1'?'#9333ea':'#059669'})`:'rgba(255,255,255,0.06)',
-    color:'#fff',touchAction:'manipulation',
+    // Bubble content
+    var msgContent = '';
+    if (msg.effect==='flip') msgContent = '<span style="display:inline-block;-webkit-transform:scaleY(-1);transform:scaleY(-1)">'+esc(msg.message)+'</span>';
+    else if (msg.effect==='rainbow') msgContent = '<span style="background:linear-gradient(90deg,#f97316,#ec4899,#8b5cf6,#06b6d4,#10b981,#f97316);background-size:200%;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">'+esc(msg.message)+'</span>';
+    else if (msg.effect==='tiny') msgContent = '<span style="font-size:9px">'+esc(msg.message)+'</span>';
+    else msgContent = esc(msg.message);
+
+    if (msg.translate) msgContent += '<div style="font-size:11px;color:rgba(255,255,255,.4);margin-top:4px;font-style:italic">🌐 '+esc(msg.translate)+'</div>';
+    if (msg.image) msgContent += '<img src="'+esc(msg.image)+'" style="max-width:200px;border-radius:10px;margin-top:6px;display:block" onclick="openLightbox(\''+esc(msg.image)+'\')">';
+
+    // Bubble classes
+    var bubbleCls = 'bubble ' + (isMe?'me':(msg.isAnon?'anon':'them'));
+    if (isCin) bubbleCls += '" style="filter:drop-shadow(0 0 18px #f59e0b)';
+
+    // Reactions
+    var rxHtml = '';
+    if (rx.length) {
+      rxHtml = '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px;justify-content:'+(isMe?'flex-end':'flex-start')+'">';
+      rx.forEach(function(e) {
+        var users = msg.reactions[e];
+        var mine = users.indexOf(STATE.sender) !== -1;
+        rxHtml += '<button onclick="reactTo(\''+esc(msg.id)+'\',\''+e+'\')" class="rx-chip'+(mine?' mine':'')+'" title="'+esc(users.join(', '))+'">'
+          +e+'<span style="font-size:11px;font-weight:700;color:#94a3b8">'+users.length+'</span></button>';
+      });
+      rxHtml += '</div>';
+    }
+
+    // Picker
+    var pickerHtml = '';
+    if (STATE.pickerOpen === msg.id) {
+      pickerHtml = '<div class="rx-picker" id="picker-'+esc(msg.id)+'">';
+      REACTIONS.forEach(function(e) {
+        pickerHtml += '<button class="rx-btn btn" onclick="pickReaction(\''+esc(msg.id)+'\',\''+e+'\')">'+e+'</button>';
+      });
+      pickerHtml += '</div>';
+    }
+
+    // Sender name
+    var nameHtml = showAv&&!isMe ? '<div style="font-size:11px;font-weight:700;margin-bottom:3px;padding-left:2px;color:'+accentColor(msg.isAnon?'Ghost':msg.sender)+'">'+(msg.isAnon?'👻 Mystery Guest':esc(msg.sender))+'</div>' : '';
+
+    // React button (desktop hover - we add it always and hide via opacity trick)
+    var reactBtn = !STATE.spectator ? '<button onclick="openPicker(\''+esc(msg.id)+'\')" class="btn" style="width:26px;height:26px;border-radius:50%;background:#1a1b2e;border:1px solid rgba(255,255,255,.14);font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:6px;opacity:0;-webkit-transition:opacity .15s;transition:opacity .15s" onmouseenter="this.style.opacity=1" onmouseleave="this.style.opacity=0;closePicker()" data-react-btn>😊</button>' : '';
+
+    html += '<div style="margin-top:'+gap+'px">'
+      +'<div class="bubble-row'+(isMe?' me':'')+'" onmouseenter="showReactBtn(this)" onmouseleave="hideReactBtn(this)">'
+      +'<div style="width:32px;flex-shrink:0;padding-top:2px">'+(showAv&&!isMe?makeAvatarHTML(msg.isAnon?'Ghost':msg.sender,28,msg.isAnon,false):'')+'</div>'
+      +'<div class="bubble-col'+(isMe?' me':' them')+'">'
+      +nameHtml
+      +'<div style="display:flex;align-items:flex-start;gap:6px;flex-direction:'+(isMe?'row-reverse':'row')+'">'
+      +reactBtn
+      +'<div class="'+bubbleCls+'">'+msgContent+'</div>'
+      +'</div>'
+      +pickerHtml
+      +rxHtml
+      +'<div style="display:flex;align-items:center;gap:4px;margin-top:3px;flex-direction:'+(isMe?'row-reverse':'row')+';padding-left:2px">'
+      +'<span style="font-size:10px;color:rgba(255,255,255,.22)">'+esc(msg.time||'')+'</span>'
+      +(isMe?'<span style="font-size:12px;color:#818cf8">✓✓</span>':'')
+      +'</div>'
+      +'</div></div></div>';
   });
 
-  return (
-    <div onClick={e=>e.target===e.currentTarget&&onClose()}
-      style={{position:'fixed',inset:0,zIndex:500,background:'rgba(0,0,0,0.85)',
-        backdropFilter:'blur(16px)',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
-      <div className="pop" style={{background:'#1a1b2e',border:'1px solid rgba(255,255,255,0.1)',
-        borderRadius:20,padding:24,width:'100%',maxWidth:380,maxHeight:'85vh',overflowY:'auto'}}>
+  // Typing indicator
+  if (STATE.typing.length) {
+    html += '<div style="display:flex;align-items:flex-end;gap:8px;margin-top:12px">'
+      +'<div style="width:32px;flex-shrink:0"></div>'
+      +'<div style="background:#1e1f2e;border:1px solid rgba(255,255,255,.06);border-radius:18px;border-bottom-left-radius:4px;padding:10px 14px">'
+      +'<span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>'
+      +'</div></div>';
+  }
 
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
-          <span style={{color:'#fff',fontWeight:700,fontSize:18}}>🏠 Rooms</span>
-          <button onClick={onClose} style={{background:'none',border:'none',cursor:'pointer',
-            color:'#64748b',fontSize:22,padding:4,touchAction:'manipulation'}}>×</button>
-        </div>
-
-        {/* Tabs */}
-        <div style={{display:'flex',gap:4,marginBottom:20,background:'rgba(255,255,255,0.04)',borderRadius:12,padding:4}}>
-          {[['join','Join'],['create','Create'],['browse','Browse']].map(([t,l])=>(
-            <button key={t} onClick={()=>{setTab(t);setCreated(null);}}
-              style={{flex:1,padding:'8px 4px',borderRadius:9,fontSize:12,fontWeight:600,
-                border:'none',cursor:'pointer',touchAction:'manipulation',
-                background:tab===t?'rgba(99,102,241,0.3)':'transparent',
-                color:tab===t?'#a5b4fc':'#64748b',transition:'all .15s'}}>
-              {l}
-            </button>
-          ))}
-        </div>
-
-        {tab==='join'&&(
-          <div style={{display:'flex',flexDirection:'column',gap:12}}>
-            <input value={code} onChange={e=>setCode(e.target.value.toUpperCase())}
-              placeholder="Room code (e.g. AB12CD)" maxLength={6}
-              style={{...inputStyle,letterSpacing:8,fontFamily:'monospace',fontSize:22,fontWeight:700}}/>
-            <input value={pass} onChange={e=>setPass(e.target.value)}
-              placeholder="Password (if required)" type="password" style={inputStyle}/>
-            <label style={{display:'flex',alignItems:'center',gap:10,cursor:'pointer',
-              color:'#94a3b8',fontSize:13,touchAction:'manipulation'}}>
-              <input type="checkbox" checked={spec} onChange={e=>setSpec(e.target.checked)}
-                style={{accentColor:'#6366f1',width:16,height:16}}/>
-              👁 Join as Spectator (invisible, read-only)
-            </label>
-            <button disabled={code.length<4} onClick={()=>onJoin(code,pass,spec)}
-              style={btnStyle(code.length>=4)}>
-              Join Room →
-            </button>
-          </div>
-        )}
-
-        {tab==='create'&&!created&&(
-          <div style={{display:'flex',flexDirection:'column',gap:12}}>
-            <input value={rname} onChange={e=>setRname(e.target.value)}
-              placeholder="Room name…" maxLength={30} style={inputStyle}/>
-            <input value={rpass} onChange={e=>setRpass(e.target.value)}
-              placeholder="🔒 Password (optional)" type="password" style={inputStyle}/>
-            <button disabled={!rname.trim()} onClick={create}
-              style={btnStyle(!!rname.trim(),'#10b981')}>
-              Create Private Room
-            </button>
-          </div>
-        )}
-
-        {tab==='create'&&created&&(
-          <div style={{textAlign:'center',display:'flex',flexDirection:'column',alignItems:'center',gap:16,paddingTop:8}}>
-            <div style={{fontSize:44}}>🎉</div>
-            <div style={{color:'#fff',fontWeight:700,fontSize:20}}>{created.name}</div>
-            <div style={{background:'rgba(99,102,241,0.12)',border:'1px solid rgba(99,102,241,0.3)',
-              borderRadius:14,padding:'16px 24px',width:'100%'}}>
-              <div style={{color:'#94a3b8',fontSize:11,marginBottom:6,textTransform:'uppercase',letterSpacing:'.1em'}}>Room Code</div>
-              <div style={{color:'#a5b4fc',fontSize:32,fontWeight:900,letterSpacing:12,fontFamily:'monospace'}}>{created.roomId}</div>
-            </div>
-            <div style={{color:'#64748b',fontSize:12}}>Share this code with your friends</div>
-            <div style={{display:'flex',gap:8,width:'100%'}}>
-              <button onClick={copy} style={{flex:1,padding:11,borderRadius:11,background:'rgba(255,255,255,0.07)',
-                color:'#fff',border:'1px solid rgba(255,255,255,0.1)',cursor:'pointer',fontSize:13,fontWeight:600,touchAction:'manipulation'}}>
-                {copied?'✓ Copied!':'📋 Copy'}
-              </button>
-              <button onClick={()=>{onJoin(created.roomId,rpass,false);onClose();}}
-                style={{flex:1,padding:11,borderRadius:11,background:'linear-gradient(135deg,#6366f1,#9333ea)',
-                  color:'#fff',border:'none',cursor:'pointer',fontWeight:700,fontSize:13,touchAction:'manipulation'}}>
-                Enter →
-              </button>
-            </div>
-          </div>
-        )}
-
-        {tab==='browse'&&(
-          <div style={{display:'flex',flexDirection:'column',gap:8}}>
-            {rooms.length===0&&<div style={{color:'#475569',textAlign:'center',padding:'24px 0',fontSize:13}}>No public rooms yet</div>}
-            {rooms.map(r=>(
-              <div key={r.id} onClick={()=>onJoin(r.id,'',false)}
-                style={{display:'flex',alignItems:'center',justifyContent:'space-between',
-                  padding:'12px 14px',background:'rgba(255,255,255,0.04)',
-                  borderRadius:12,cursor:'pointer',border:'1px solid rgba(255,255,255,0.07)',
-                  touchAction:'manipulation'}}
-                onMouseEnter={e=>e.currentTarget.style.background='rgba(99,102,241,0.1)'}
-                onMouseLeave={e=>e.currentTarget.style.background='rgba(255,255,255,0.04)'}>
-                <div>
-                  <div style={{color:'#fff',fontWeight:600,fontSize:14}}>#{r.name}</div>
-                  <div style={{color:'#475569',fontSize:11}}>{r.count} online</div>
-                </div>
-                <span style={{color:'#6366f1',fontSize:12,fontWeight:600}}>Join →</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
+  el.innerHTML = html;
 }
 
-// ── Sidebar ──────────────────────────────────────────────────────────────────
-function Sidebar({sender,status,onStatusChange,users,room,onOpenRooms,spectator,anon,onClose,isMobile}) {
-  const st = STATUSES.find(s=>s.v===status)||STATUSES[0];
-  const [showSt,setShowSt] = useState(false);
-
-  return (
-    <div style={{width:260,height:'100%',background:'#12131e',display:'flex',
-      flexDirection:'column',overflow:'hidden',borderRight:'1px solid rgba(255,255,255,0.06)'}}>
-
-      {/* Brand */}
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
-        padding:'16px 18px',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
-        <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <div style={{width:34,height:34,borderRadius:10,
-            background:'linear-gradient(135deg,#6366f1,#9333ea)',
-            display:'flex',alignItems:'center',justifyContent:'center',fontSize:18}}>👾</div>
-          <div>
-            <div style={{color:'#fff',fontWeight:800,fontSize:15,letterSpacing:'-.3px'}}>GroupChat</div>
-            <div style={{color:'#475569',fontSize:10}}>#{room}</div>
-          </div>
-        </div>
-        {isMobile&&<button onClick={onClose} style={{background:'none',border:'none',
-          cursor:'pointer',color:'#64748b',fontSize:20,padding:4,touchAction:'manipulation'}}>×</button>}
-      </div>
-
-      {/* Rooms button */}
-      <div style={{padding:'12px 12px 0'}}>
-        <button onClick={onOpenRooms} style={{
-          display:'flex',alignItems:'center',gap:8,width:'100%',
-          padding:'10px 14px',borderRadius:14,background:'rgba(99,102,241,0.1)',
-          border:'1px solid rgba(99,102,241,0.2)',color:'#a5b4fc',
-          cursor:'pointer',fontWeight:600,fontSize:13,touchAction:'manipulation'}}
-          onMouseEnter={e=>e.currentTarget.style.background='rgba(99,102,241,0.2)'}
-          onMouseLeave={e=>e.currentTarget.style.background='rgba(99,102,241,0.1)'}>
-          🏠 Rooms
-          <span style={{marginLeft:'auto',background:'rgba(99,102,241,0.3)',
-            borderRadius:6,padding:'2px 8px',fontSize:10,fontWeight:700}}>
-            {room==='General'?'General':'Private'}
-          </span>
-        </button>
-      </div>
-
-      <div style={{height:1,background:'rgba(255,255,255,0.06)',margin:'12px 14px'}}/>
-
-      {/* You */}
-      <div style={{padding:'0 14px 12px',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
-        <div style={{fontSize:10,fontWeight:700,color:'#334155',textTransform:'uppercase',
-          letterSpacing:'.1em',marginBottom:10}}>You</div>
-        <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <div style={{position:'relative',cursor:'pointer'}} onClick={()=>setShowSt(v=>!v)}>
-            <PixelAvatar name={sender} size={36} ring ghost={spectator}/>
-            <div style={{position:'absolute',bottom:-2,right:-2,width:13,height:13,
-              borderRadius:'50%',background:st.c,border:'2.5px solid #12131e'}}/>
-          </div>
-          <div style={{flex:1,minWidth:0}}>
-            <div style={{color:'#e2e8f0',fontWeight:700,fontSize:13,
-              display:'flex',alignItems:'center',gap:5,
-              overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-              {sender}
-              {spectator&&<span style={{fontSize:9,background:'rgba(148,163,184,.15)',color:'#94a3b8',padding:'1px 5px',borderRadius:4}}>👁</span>}
-              {anon&&<span style={{fontSize:9,background:'rgba(107,114,128,.2)',color:'#9ca3af',padding:'1px 5px',borderRadius:4}}>👻</span>}
-            </div>
-            <div style={{fontSize:11,color:st.c,display:'flex',alignItems:'center',gap:3}}>
-              {st.e} {st.l}
-            </div>
-          </div>
-        </div>
-
-        {showSt&&(
-          <div style={{marginTop:8,background:'#0a0b14',borderRadius:10,
-            border:'1px solid rgba(255,255,255,0.08)',overflow:'hidden'}}>
-            {STATUSES.map(s=>(
-              <button key={s.v} onClick={()=>{onStatusChange(s.v);setShowSt(false);}}
-                style={{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',
-                  width:'100%',background:status===s.v?'rgba(99,102,241,0.15)':'transparent',
-                  border:'none',cursor:'pointer',color:s.c,fontSize:13,fontWeight:600,
-                  touchAction:'manipulation'}}
-                onMouseEnter={e=>e.currentTarget.style.background='rgba(255,255,255,0.06)'}
-                onMouseLeave={e=>e.currentTarget.style.background=status===s.v?'rgba(99,102,241,0.15)':'transparent'}>
-                {s.e} {s.l}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Online users */}
-      <div style={{flex:1,overflowY:'auto',padding:'10px 12px',WebkitOverflowScrolling:'touch'}}>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
-          <div style={{fontSize:10,fontWeight:700,color:'#334155',textTransform:'uppercase',letterSpacing:'.1em'}}>
-            Online — {users.filter(u=>!u.spectator).length}
-          </div>
-          <div className="pulse" style={{width:7,height:7,borderRadius:'50%',background:'#22c55e'}}/>
-        </div>
-        {users.map((u,i)=>{
-          const s=STATUSES.find(s=>s.v===u.status)||STATUSES[0];
-          return (
-            <div key={i} style={{display:'flex',alignItems:'center',gap:10,
-              padding:'7px 8px',borderRadius:12,marginBottom:2}}>
-              <div style={{position:'relative'}}>
-                <PixelAvatar name={u.username} size={30} ghost={u.spectator}/>
-                <div style={{position:'absolute',bottom:-1,right:-1,width:9,height:9,
-                  borderRadius:'50%',background:s.c,border:'2px solid #12131e'}}/>
-              </div>
-              <div style={{minWidth:0,flex:1}}>
-                <div style={{color:u.username===sender?'#a5b4fc':'#e2e8f0',
-                  fontSize:13,fontWeight:500,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',
-                  display:'flex',alignItems:'center',gap:4}}>
-                  {u.username}{u.spectator&&<span style={{fontSize:10,opacity:.6}}>👁</span>}
-                </div>
-                <div style={{fontSize:10,color:s.c}}>{s.e} {s.l}</div>
-              </div>
-            </div>
-          );
-        })}
-        {users.length===0&&<div style={{color:'#334155',fontSize:12,textAlign:'center',padding:16}}>No one else here yet</div>}
-      </div>
-    </div>
-  );
+function showReactBtn(row) { var b=row.querySelector('[data-react-btn]'); if(b) b.style.opacity=1; }
+function hideReactBtn(row) {
+  var b=row.querySelector('[data-react-btn]');
+  // Don't hide if picker is open for a msg in this row
+  if(b && !STATE.pickerOpen) b.style.opacity=0;
 }
 
-// ── Room Brain ───────────────────────────────────────────────────────────────
-function RoomBrain({messages,onClose}) {
-  const [summary,setSummary] = useState('');
-  const [topics,setTopics]   = useState([]);
-  const [mood,setMood]       = useState('');
-  const [loading,setLoading] = useState(false);
+// ── Picker ────────────────────────────────────────────────────────────────────
+function openPicker(msgId) {
+  STATE.pickerOpen = STATE.pickerOpen===msgId ? null : msgId;
+  renderMessages();
+  if (STATE.atBottom) scrollToBottom();
+}
+function closePicker() {
+  if (!STATE.pickerOpen) return;
+  STATE.pickerOpen = null;
+  renderMessages();
+}
+function pickReaction(msgId, emoji) {
+  STATE.pickerOpen = null;
+  reactTo(msgId, emoji);
+}
+document.addEventListener('click', function(e) {
+  if (!STATE.pickerOpen) return;
+  var picker = document.getElementById('picker-'+STATE.pickerOpen);
+  if (picker && !picker.contains(e.target)) {
+    var reactBtns = document.querySelectorAll('[data-react-btn]');
+    var onBtn = false;
+    for (var i=0; i<reactBtns.length; i++) if (reactBtns[i].contains(e.target)) { onBtn=true; break; }
+    if (!onBtn) { STATE.pickerOpen=null; renderMessages(); }
+  }
+}, true);
 
-  const analyze = useCallback(async()=>{
-    const msgs = messages.filter(m=>m.message).slice(-40);
-    if(msgs.length<3){setSummary('Not enough messages yet. Keep chatting!');return;}
-    setLoading(true);
-    const transcript = msgs.map(m=>`${m.sender}: ${m.message}`).join('\n');
-    try {
-      const res = await fetch('https://api.anthropic.com/v1/messages',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({
-          model:'claude-sonnet-4-6',max_tokens:1000,
-          messages:[{role:'user',content:`Analyze this chat. Reply ONLY with valid JSON, no markdown:\n{"summary":"2-3 casual sentences","topics":["t1","t2","t3"],"mood":"hype|chill|serious|funny|mixed","highlight":"funniest/most interesting moment"}\n\nChat:\n${transcript}`}]
-        })
-      });
-      const data = await res.json();
-      const text = (data.content?.[0]?.text||'').replace(/```json|```/g,'').trim();
-      const parsed = JSON.parse(text);
-      setSummary(parsed.summary||'');
-      setTopics(parsed.topics||[]);
-      setMood(parsed.mood||'');
-    } catch(e){setSummary('Could not generate summary. Try again.');}
-    finally{setLoading(false);}
-  },[messages]);
+// ── Long-press for mobile picker ──────────────────────────────────────────────
+var _lpTimer = null;
+document.addEventListener('touchstart', function(e) {
+  var bubble = e.target.closest('.bubble');
+  if (!bubble || STATE.spectator) return;
+  var row = bubble.closest('.bubble-row');
+  if (!row) return;
+  // Find msgId from row
+  var btn = row.querySelector('[data-react-btn]');
+  if (!btn) return;
+  var onclick = btn.getAttribute('onclick');
+  var match = /openPicker\('([^']+)'\)/.exec(onclick);
+  if (!match) return;
+  var msgId = match[1];
+  _lpTimer = setTimeout(function(){ openPicker(msgId); }, 450);
+}, {passive:true});
+document.addEventListener('touchend', function(){ clearTimeout(_lpTimer); }, {passive:true});
+document.addEventListener('touchmove', function(){ clearTimeout(_lpTimer); }, {passive:true});
 
-  useEffect(()=>{analyze();},[]);
-
-  const moodCol={hype:'#f97316',chill:'#06b6d4',serious:'#6366f1',funny:'#10b981',mixed:'#f59e0b'}[mood]||'#6366f1';
-  const stats=[
-    {l:'Messages',v:messages.filter(m=>m.message).length},
-    {l:'Members',v:new Set(messages.map(m=>m.sender)).size},
-    {l:'Reactions',v:messages.reduce((a,m)=>a+Object.values(m.reactions||{}).reduce((b,u)=>b+u.length,0),0)},
-    {l:'Anonymous',v:messages.filter(m=>m.isAnon).length},
-  ];
-
-  return (
-    <div style={{position:'fixed',top:0,right:0,bottom:0,zIndex:400,
-      width:'min(320px, 90vw)',background:'#12131e',
-      borderLeft:'1px solid rgba(255,255,255,0.07)',
-      display:'flex',flexDirection:'column',
-      boxShadow:'-8px 0 40px rgba(0,0,0,0.5)'}}>
-      <div style={{padding:'16px 20px',borderBottom:'1px solid rgba(255,255,255,0.07)',
-        display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-        <div style={{display:'flex',alignItems:'center',gap:8}}>
-          <span style={{fontSize:20}}>🧠</span>
-          <span style={{color:'#fff',fontWeight:800,fontSize:16}}>Room Brain</span>
-        </div>
-        <button onClick={onClose} style={{background:'none',border:'none',cursor:'pointer',
-          color:'#64748b',fontSize:20,padding:4,touchAction:'manipulation'}}>×</button>
-      </div>
-
-      <div style={{flex:1,overflowY:'auto',padding:20,display:'flex',flexDirection:'column',gap:16}}>
-        <div style={{fontSize:12,color:'#475569'}}>AI-powered live summary of your conversation</div>
-
-        {mood&&(
-          <div style={{background:`${moodCol}18`,border:`1px solid ${moodCol}33`,
-            borderRadius:12,padding:'12px 14px',display:'flex',alignItems:'center',gap:10}}>
-            <span style={{fontSize:20}}>✨</span>
-            <div>
-              <div style={{fontSize:10,color:'#64748b',textTransform:'uppercase',letterSpacing:'.08em'}}>Room Mood</div>
-              <div style={{color:moodCol,fontWeight:700,textTransform:'capitalize',marginTop:2}}>{mood}</div>
-            </div>
-          </div>
-        )}
-
-        <div style={{background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.07)',
-          borderRadius:12,padding:16}}>
-          <div style={{fontSize:10,fontWeight:700,color:'#475569',textTransform:'uppercase',
-            letterSpacing:'.08em',marginBottom:10}}>What's happening</div>
-          {loading?(
-            <div style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0'}}>
-              <div style={{width:14,height:14,borderRadius:'50%',border:'2px solid #6366f1',
-                borderTopColor:'transparent',animation:'spin 0.8s linear infinite'}}/>
-              <span style={{color:'#475569',fontSize:13}}>Analyzing…</span>
-              <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-            </div>
-          ):(
-            <div style={{color:'#cbd5e1',fontSize:13,lineHeight:1.6}}>
-              {summary||'Click Refresh to analyze'}
-            </div>
-          )}
-        </div>
-
-        {topics.length>0&&(
-          <div>
-            <div style={{fontSize:10,fontWeight:700,color:'#475569',textTransform:'uppercase',
-              letterSpacing:'.08em',marginBottom:8}}>Hot Topics</div>
-            <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
-              {topics.map(t=>(
-                <span key={t} style={{background:'rgba(99,102,241,0.15)',color:'#a5b4fc',
-                  border:'1px solid rgba(99,102,241,0.25)',borderRadius:8,
-                  padding:'3px 10px',fontSize:12}}>{t}</span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-          {stats.map(s=>(
-            <div key={s.l} style={{background:'rgba(255,255,255,0.03)',
-              border:'1px solid rgba(255,255,255,0.07)',borderRadius:10,
-              padding:12,textAlign:'center'}}>
-              <div style={{color:'#6366f1',fontWeight:800,fontSize:22,lineHeight:1}}>{s.v}</div>
-              <div style={{color:'#475569',fontSize:10,marginTop:4}}>{s.l}</div>
-            </div>
-          ))}
-        </div>
-
-        <button onClick={analyze} disabled={loading} style={{
-          padding:'12px',borderRadius:12,border:'none',cursor:loading?'not-allowed':'pointer',
-          background:loading?'rgba(255,255,255,0.05)':'linear-gradient(135deg,#6366f1,#9333ea)',
-          color:'#fff',fontWeight:700,fontSize:13,display:'flex',alignItems:'center',
-          justifyContent:'center',gap:8,touchAction:'manipulation'}}>
-          🔄 Refresh Summary
-        </button>
-      </div>
-    </div>
-  );
+// ── React ─────────────────────────────────────────────────────────────────────
+var _cinTrack = {};
+function reactTo(msgId, emoji) {
+  if (STATE.spectator) return;
+  for (var i=0; i<STATE.messages.length; i++) {
+    var m = STATE.messages[i];
+    if (m.id !== msgId) continue;
+    if (!m.reactions) m.reactions = {};
+    if (!m.reactions[emoji]) m.reactions[emoji] = [];
+    var idx = m.reactions[emoji].indexOf(STATE.sender);
+    if (idx===-1) m.reactions[emoji].push(STATE.sender);
+    else m.reactions[emoji].splice(idx,1);
+    break;
+  }
+  socket.emit('reaction', {msgId:msgId, emoji:emoji, user:STATE.sender});
+  renderMessages();
+  // Cinematic check
+  if (!_cinTrack[msgId]) _cinTrack[msgId] = [];
+  _cinTrack[msgId].push(Date.now());
+  _cinTrack[msgId] = _cinTrack[msgId].filter(function(t){ return Date.now()-t<10000; });
+  if (_cinTrack[msgId].length >= 5) { socket.emit('cinematic check',{msgId:msgId}); _cinTrack[msgId]=[]; }
 }
 
-// ── Moderation Block ─────────────────────────────────────────────────────────
-function ModBlock({reason,msg,onClose}) {
-  const icons={profanity:'⚖️',illegal:'🚫',sexual:'🛡️'};
-  return (
-    <div style={{position:'fixed',inset:0,zIndex:600,background:'rgba(0,0,0,0.85)',
-      backdropFilter:'blur(16px)',display:'flex',alignItems:'center',
-      justifyContent:'center',padding:16}}>
-      <div className="pop" style={{background:'#1a1b2e',border:'1px solid rgba(239,68,68,0.3)',
-        borderRadius:20,padding:28,width:'100%',maxWidth:340,textAlign:'center',
-        display:'flex',flexDirection:'column',alignItems:'center',gap:16}}>
-        <div style={{fontSize:44}}>{icons[reason]||'⚠️'}</div>
-        <div style={{color:'#fff',fontWeight:700,fontSize:18}}>Message Blocked</div>
-        <div style={{color:'#94a3b8',fontSize:14,lineHeight:1.5}}>{msg}</div>
-        <div style={{background:'rgba(239,68,68,0.08)',border:'1px solid rgba(239,68,68,0.2)',
-          borderRadius:10,padding:'10px 14px',width:'100%'}}>
-          <span style={{color:'#f87171',fontSize:12}}>🛡️ This space is safe &amp; family-friendly</span>
-        </div>
-        <button onClick={onClose} style={{padding:'11px 24px',borderRadius:12,
-          background:'rgba(255,255,255,0.08)',color:'#fff',border:'1px solid rgba(255,255,255,0.12)',
-          cursor:'pointer',fontWeight:600,fontSize:13,touchAction:'manipulation'}}>
-          Edit Message
-        </button>
-      </div>
-    </div>
-  );
+// ── Input ─────────────────────────────────────────────────────────────────────
+var _typTimer = null;
+function onInputChange(e) {
+  var v = e.target.value;
+  var sendBtn = document.getElementById('send-btn');
+  var hasContent = v.trim() || STATE.imgPreview;
+  sendBtn.className = 'sendbtn ' + (hasContent ? 'active' : 'inactive');
+  socket.emit('typing', {sender:STATE.sender});
+  clearTimeout(_typTimer);
+  _typTimer = setTimeout(function(){ socket.emit('stop typing',{sender:STATE.sender}); }, 1500);
+}
+function onInputKey(e) {
+  if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  if (e.key==='Escape') clearImgPreview();
+}
+function sendMessage() {
+  if (STATE.spectator) return;
+  var inp = document.getElementById('msg-input');
+  if (STATE.imgPreview) {
+    socket.emit('chat message',{id:makeId(),sender:STATE.sender,image:STATE.imgPreview,time:nowTime(),reactions:{},isAnon:STATE.anon});
+    clearImgPreview(); return;
+  }
+  var text = inp.value.trim(); if (!text) return;
+  var mod = moderate(text);
+  if (mod.blocked) { showModBlock(mod.reason, mod.msg); return; }
+  var effect = null;
+  for (var i=0; i<CONSEQUENCES.length; i++) {
+    if (CONSEQUENCES[i].t.test(text)) { effect=CONSEQUENCES[i].e; showToast(CONSEQUENCES[i].m,'#f59e0b'); break; }
+  }
+  socket.emit('chat message',{id:makeId(),sender:STATE.anon?'Anonymous':STATE.sender,message:text,time:nowTime(),reactions:{},effect:effect,isAnon:STATE.anon});
+  inp.value = '';
+  document.getElementById('send-btn').className = 'sendbtn inactive';
+  clearTimeout(_typTimer);
+  socket.emit('stop typing',{sender:STATE.sender});
+  setTimeout(function(){ inp.focus(); }, 50);
 }
 
-// ── Join Screen ───────────────────────────────────────────────────────────────
-function JoinScreen({onJoin}) {
-  const [name,setName] = useState('');
-  const [lang,setLang] = useState('en');
-  const inputRef = useRef(null);
-  useEffect(()=>{ setTimeout(()=>inputRef.current?.focus(),300); },[]);
-
-  const inputStyle = {
-    width:'100%',padding:'12px 14px',background:'rgba(255,255,255,0.05)',
-    border:'1px solid rgba(255,255,255,0.12)',borderRadius:12,
-    color:'#fff',fontSize:16,outline:'none',boxSizing:'border-box',
-  };
-  return (
-    <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.92)',
-      backdropFilter:'blur(20px)',display:'flex',alignItems:'flex-start',
-      justifyContent:'center',overflowY:'auto',
-      paddingTop:'max(48px, env(safe-area-inset-top))',
-      paddingBottom:'max(24px, env(safe-area-inset-bottom))',
-      paddingLeft:16,paddingRight:16,zIndex:9999}}>
-      <div className="pop" style={{background:'#1a1b2e',border:'1px solid rgba(255,255,255,0.1)',
-        borderRadius:24,padding:28,width:'100%',maxWidth:340,
-        display:'flex',flexDirection:'column',alignItems:'center',gap:20}}>
-
-        <div style={{position:'relative',padding:12,background:'#0a0b14',
-          borderRadius:14,border:'1px solid rgba(255,255,255,0.07)'}}>
-          <PixelAvatar name={name.trim()||'You'} size={88} ring/>
-          <div style={{position:'absolute',bottom:-6,right:-6,fontSize:20}}>✨</div>
-        </div>
-
-        <div style={{textAlign:'center'}}>
-          <div style={{color:'#fff',fontWeight:800,fontSize:22,letterSpacing:'-.5px'}}>Join GroupChat</div>
-          <div style={{color:'#475569',fontSize:12,marginTop:4}}>Your pixel avatar is unique to your name</div>
-        </div>
-
-        <div style={{width:'100%',display:'flex',flexDirection:'column',gap:12}}>
-          <input ref={inputRef} value={name} onChange={e=>setName(e.target.value)}
-            onKeyDown={e=>e.key==='Enter'&&name.trim()&&onJoin(name.trim(),lang)}
-            placeholder="Your name…" maxLength={24} style={inputStyle}/>
-
-          <select value={lang} onChange={e=>setLang(e.target.value)}
-            style={{...inputStyle,background:'#0f1019',cursor:'pointer'}}>
-            {LANGS.map(l=><option key={l.c} value={l.c}>{l.l}</option>)}
-          </select>
-
-          <button disabled={!name.trim()} onClick={()=>name.trim()&&onJoin(name.trim(),lang)}
-            style={{width:'100%',padding:14,borderRadius:12,fontWeight:700,fontSize:15,
-              border:'none',touchAction:'manipulation',
-              background:name.trim()?'linear-gradient(135deg,#6366f1,#9333ea)':'rgba(255,255,255,0.06)',
-              color:name.trim()?'#fff':'#334155',cursor:name.trim()?'pointer':'not-allowed',
-              transition:'all .15s'}}>
-            Enter Chat →
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+// ── File ──────────────────────────────────────────────────────────────────────
+function handleFile(e) {
+  var f = e.target.files && e.target.files[0]; if (!f) return;
+  var reader = new FileReader();
+  reader.onload = function(ev) { setImgPreview(ev.target.result); };
+  reader.readAsDataURL(f);
+  e.target.value='';
 }
-
-// ── Main App ─────────────────────────────────────────────────────────────────
-function App() {
-  const [sender,    setSender]    = useState('');
-  const [lang,      setLang]      = useState('en');
-  const [ready,     setReady]     = useState(false);
-  const [message,   setMessage]   = useState('');
-  const [messages,  setMessages]  = useState([]);
-  const [typing,    setTyping]    = useState([]);
-  const [users,     setUsers]     = useState([]);
-  const [connected, setConnected] = useState(false);
-  const [imgPrev,   setImgPrev]   = useState(null);
-  const [lightbox,  setLightbox]  = useState(null);
-  const [spectator, setSpectator] = useState(false);
-  const [roomId,    setRoomId]    = useState('general');
-  const [roomName,  setRoomName]  = useState('General');
-  const [status,    setStatus]    = useState('online');
-  const [anon,      setAnon]      = useState(false);
-  const [cinId,     setCinId]     = useState(null);
-  const [confetti,  setConfetti]  = useState(false);
-  const [toast,     setToast]     = useState(null);
-  const [modBlock,  setModBlock]  = useState(null);
-  const [sidebar,   setSidebar]   = useState(false);
-  const [roomsOpen, setRoomsOpen] = useState(false);
-  const [brainOpen, setBrainOpen] = useState(false);
-  const [atBottom,  setAtBottom]  = useState(true);
-  const [unread,    setUnread]    = useState(0);
-
-  const msgsRef   = useRef(null);
-  const endRef    = useRef(null);
-  const inputRef  = useRef(null);
-  const typTimer  = useRef(null);
-  const cinRef    = useRef({});
-  const senderRef = useRef('');
-  const langRef   = useRef('en');
-
-  useEffect(()=>{ senderRef.current=sender; },[sender]);
-  useEffect(()=>{ langRef.current=lang; },[lang]);
-
-  const isMobile = window.innerWidth < 768;
-
-  const showToast = (msg,sev='info') => setToast({msg,sev});
-
-  // Translate
-  const translate = useCallback(async(text,tl)=>{
-    if(!tl||tl==='en') return null;
-    try{
-      const r=await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text.slice(0,300))}&langpair=en|${tl}`);
-      const d=await r.json();
-      const t=d?.responseData?.translatedText;
-      return t&&t!==text&&!t.includes('PLEASE SELECT')?t:null;
-    }catch{return null;}
-  },[]);
-
-  // Socket events
-  useEffect(()=>{
-    socket.on('connect',   ()=>{ setConnected(true); showToast('Connected','success'); });
-    socket.on('disconnect',()=>{ setConnected(false); showToast('Reconnecting…','warning'); });
-    if(socket.connected) setConnected(true);
-
-    socket.on('chat history',history=>{
-      setMessages((history||[]).map(m=>({...m,id:m.id||makeId(),reactions:m.reactions||{}})));
-    });
-
-    socket.on('chat message',async data=>{
-      const msg={...data,id:data.id||makeId(),reactions:data.reactions||{}};
-      if(data.sender!==senderRef.current){
-        if(msg.message?.toLowerCase().includes(senderRef.current.toLowerCase())){
-          showToast(`📣 ${data.sender} mentioned you`,'info');
-        }
-        if(!msgsRef.current||msgsRef.current.scrollHeight-msgsRef.current.scrollTop-msgsRef.current.clientHeight>100){
-          setUnread(u=>u+1);
-        }
-      }
-      const tl=langRef.current;
-      if(tl&&tl!=='en'&&msg.message){
-        const t=await translate(msg.message,tl);
-        if(t) msg.translate=t;
-      }
-      setMessages(p=>[...p,msg]);
-    });
-
-    socket.on('reaction update',({msgId,reactions})=>{
-      setMessages(p=>p.map(m=>m.id===msgId?{...m,reactions}:m));
-    });
-
-    socket.on('typing',({sender:s})=>{
-      if(s!==senderRef.current) setTyping(p=>p.includes(s)?p:[...p,s]);
-    });
-    socket.on('stop typing',({sender:s})=>setTyping(p=>p.filter(u=>u!==s)));
-    socket.on('user list',setUsers);
-
-    socket.on('cinematic moment',({msgId})=>{
-      setCinId(msgId); setConfetti(true);
-      showToast('🎬 Cinematic Moment!','success');
-      setTimeout(()=>setCinId(null),5000);
-    });
-
-    socket.on('room joined',({room,name,spectator:sp})=>{
-      setRoomId(room); setRoomName(name);
-      setSpectator(sp); setMessages([]);
-      setRoomsOpen(false);
-      showToast(sp?`👁 Joined #${name} as spectator`:`🏠 Joined #${name}`,'success');
-    });
-
-    socket.on('error',msg=>showToast(msg,'error'));
-
-    const onPaste=e=>{
-      for(const item of e.clipboardData.items){
-        if(item.type.startsWith('image/')){
-          const r=new FileReader();
-          r.onload=ev=>setImgPrev(ev.target.result);
-          r.readAsDataURL(item.getAsFile()); break;
-        }
-      }
-    };
-    window.addEventListener('paste',onPaste);
-    if(Notification.permission==='default') Notification.requestPermission();
-    return()=>{
-      ['connect','disconnect','chat history','chat message','reaction update',
-       'typing','stop typing','user list','cinematic moment','room joined','error']
-        .forEach(e=>socket.off(e));
-      window.removeEventListener('paste',onPaste);
-    };
-  },[translate]);
-
-  // Auto-scroll
-  useEffect(()=>{
-    if(!atBottom) return;
-    const el=msgsRef.current;
-    if(el){ el.scrollTop=el.scrollHeight; setUnread(0); }
-  },[messages.length]);
-
-  const handleScroll=useCallback(()=>{
-    const el=msgsRef.current; if(!el) return;
-    const ab=el.scrollHeight-el.scrollTop-el.clientHeight<100;
-    setAtBottom(ab);
-    if(ab) setUnread(0);
-  },[]);
-
-  // Join
-  const joinChat=useCallback((name,l)=>{
-    setSender(name); setLang(l); langRef.current=l;
-    setReady(true);
-    sessionStorage.setItem('gc_name',name);
-    sessionStorage.setItem('gc_lang',l);
-    socket.emit('join',{username:name,room:'general'});
-  },[]);
-
-  useEffect(()=>{
-    const n=sessionStorage.getItem('gc_name');
-    const l=sessionStorage.getItem('gc_lang')||'en';
-    if(n) joinChat(n,l);
-  },[joinChat]);
-
-  // Join room
-  const joinRoom=useCallback((code,pass,sp)=>{
-    socket.emit('join',{username:sender,room:code,password:pass,spectator:sp});
-  },[sender]);
-
-  // Send
-  const send=useCallback(()=>{
-    if(spectator) return;
-    if(imgPrev){
-      socket.emit('chat message',{id:makeId(),sender,image:imgPrev,time:formatTime(),reactions:{},isAnon:anon});
-      setImgPrev(null); return;
+function setImgPreview(src) {
+  STATE.imgPreview = src;
+  var bar = document.getElementById('img-preview-bar');
+  bar.style.display = 'flex';
+  document.getElementById('img-preview-thumb').src = src;
+  document.getElementById('send-btn').className = 'sendbtn active';
+}
+function clearImgPreview() {
+  STATE.imgPreview = null;
+  var bar = document.getElementById('img-preview-bar');
+  bar.style.display = 'none';
+  var inp = document.getElementById('msg-input');
+  document.getElementById('send-btn').className = 'sendbtn ' + (inp.value.trim()?'active':'inactive');
+}
+// Paste to image
+document.addEventListener('paste', function(e) {
+  if (!STATE.ready) return;
+  var items = e.clipboardData && e.clipboardData.items;
+  if (!items) return;
+  for (var i=0; i<items.length; i++) {
+    if (items[i].type.indexOf('image/')===0) {
+      var r = new FileReader();
+      r.onload = function(ev){ setImgPreview(ev.target.result); };
+      r.readAsDataURL(items[i].getAsFile());
+      break;
     }
-    const text=message.trim(); if(!text) return;
-    // Moderation
-    const mod=moderate(text);
-    if(mod.blocked){ setModBlock({reason:mod.reason,msg:mod.msg}); return; }
-    // Consequence
-    let effect=null;
-    for(const r of CONSEQUENCES){ if(r.t.test(text)){effect=r.e;showToast(r.msg,'warning');break;} }
-    socket.emit('chat message',{id:makeId(),sender:anon?'Anonymous':sender,message:text,time:formatTime(),reactions:{},effect,isAnon:anon});
-    setMessage('');
-    clearTimeout(typTimer.current);
-    socket.emit('stop typing',{sender});
-    setTimeout(()=>inputRef.current?.focus(),50);
-  },[message,sender,imgPrev,anon,spectator]);
+  }
+});
 
-  // React
-  const react=useCallback((msgId,emoji)=>{
-    if(spectator) return;
-    setMessages(p=>p.map(m=>{
-      if(m.id!==msgId) return m;
-      const r={...m.reactions}; if(!r[emoji]) r[emoji]=[];
-      const i=r[emoji].indexOf(sender);
-      r[emoji]=i===-1?[...r[emoji],sender]:r[emoji].filter(u=>u!==sender);
-      return{...m,reactions:r};
-    }));
-    socket.emit('reaction',{msgId,emoji,user:sender});
-    // Cinematic check
-    if(!cinRef.current[msgId]) cinRef.current[msgId]=[];
-    cinRef.current[msgId].push(Date.now());
-    const recent=cinRef.current[msgId].filter(t=>Date.now()-t<10000);
-    cinRef.current[msgId]=recent;
-    if(recent.length>=5){ socket.emit('cinematic check',{msgId}); cinRef.current[msgId]=[]; }
-  },[sender,spectator]);
-
-  const handleTyping=e=>{
-    setMessage(e.target.value);
-    socket.emit('typing',{sender});
-    clearTimeout(typTimer.current);
-    typTimer.current=setTimeout(()=>socket.emit('stop typing',{sender}),1500);
-  };
-  const handleKey=e=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();} if(e.key==='Escape') setImgPrev(null); };
-  const handleFile=e=>{ const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=ev=>setImgPrev(ev.target.result); r.readAsDataURL(f); e.target.value=''; };
-
-  const typingLabel = typing.length===1?`${typing[0]} is typing…`:typing.length>1?`${typing.slice(0,2).join(' & ')} are typing…`:'';
-  const st = STATUSES.find(s=>s.v===status)||STATUSES[0];
-
-  if(!ready) return <JoinScreen onJoin={joinChat}/>;
-
-  return (
-    <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',
-      justifyContent:'center',background:'#0a0b14',overflow:'hidden'}}>
-
-      {confetti&&<Confetti onDone={()=>setConfetti(false)}/>}
-      {toast&&<Toast msg={toast.msg} sev={toast.sev} onClose={()=>setToast(null)}/>}
-      {modBlock&&<ModBlock reason={modBlock.reason} msg={modBlock.msg} onClose={()=>setModBlock(null)}/>}
-      {roomsOpen&&<RoomsModal onClose={()=>setRoomsOpen(false)} onJoin={joinRoom} username={sender}/>}
-      {brainOpen&&<RoomBrain messages={messages} onClose={()=>setBrainOpen(false)}/>}
-
-      {/* Lightbox */}
-      {lightbox&&(
-        <div onClick={()=>setLightbox(null)} style={{position:'fixed',inset:0,zIndex:800,
-          background:'rgba(0,0,0,0.95)',display:'flex',alignItems:'center',justifyContent:'center',cursor:'zoom-out'}}>
-          <img src={lightbox} alt="full" style={{maxWidth:'90vw',maxHeight:'90vh',borderRadius:12}}/>
-          <button onClick={()=>setLightbox(null)} style={{position:'absolute',top:16,right:16,
-            background:'rgba(255,255,255,0.1)',border:'none',color:'#fff',
-            fontSize:20,width:36,height:36,borderRadius:'50%',cursor:'pointer',
-            display:'flex',alignItems:'center',justifyContent:'center',touchAction:'manipulation'}}>×</button>
-        </div>
-      )}
-
-      {/* Card */}
-      <div style={{
-        position:'relative',width:'100%',height:'100%',display:'flex',overflow:'hidden',
-        background:'#131420',
-        ...(!isMobile?{maxWidth:1024,maxHeight:'94vh',height:'94vh',borderRadius:16,
-          border:'1px solid rgba(255,255,255,0.07)',boxShadow:'0 40px 120px rgba(0,0,0,0.8)'}:{}),
-      }}>
-
-        {/* Mobile sidebar overlay */}
-        {sidebar&&isMobile&&<div onClick={()=>setSidebar(false)} style={{position:'fixed',inset:0,zIndex:200,background:'rgba(0,0,0,0.6)'}}/>}
-
-        {/* Sidebar */}
-        <div style={{
-          ...(!isMobile?{width:260,flexShrink:0}:{
-            position:'absolute',top:0,bottom:0,left:0,zIndex:300,
-            transform:sidebar?'translateX(0)':'translateX(-100%)',
-            transition:'transform .3s ease',
-          })
-        }}>
-          <Sidebar sender={sender} status={status} onStatusChange={v=>{setStatus(v);socket.emit('status',{status:v});}}
-            users={users} room={roomName} onOpenRooms={()=>{setRoomsOpen(true);setSidebar(false);}}
-            spectator={spectator} anon={anon} onClose={()=>setSidebar(false)} isMobile={isMobile}/>
-        </div>
-
-        {/* Main column */}
-        <div style={{flex:1,display:'flex',flexDirection:'column',minWidth:0,overflow:'hidden',position:'relative'}}>
-
-          {/* Header */}
-          <div style={{
-            display:'flex',alignItems:'center',gap:8,
-            padding:`max(8px, env(safe-area-inset-top)) 14px 10px`,
-            borderBottom:'1px solid rgba(255,255,255,0.06)',
-            background:'#12131e',flexShrink:0,minHeight:52,
-          }}>
-            {/* Hamburger */}
-            {isMobile&&(
-              <button onClick={()=>setSidebar(v=>!v)}
-                style={{background:'none',border:'none',cursor:'pointer',color:'#64748b',
-                  width:36,height:36,display:'flex',alignItems:'center',justifyContent:'center',
-                  borderRadius:8,flexShrink:0,position:'relative',touchAction:'manipulation'}}>
-                ☰
-                {unread>0&&(
-                  <span style={{position:'absolute',top:4,right:4,width:16,height:16,
-                    borderRadius:'50%',background:'#6366f1',fontSize:9,fontWeight:700,
-                    color:'#fff',display:'flex',alignItems:'center',justifyContent:'center'}}>
-                    {unread}
-                  </span>
-                )}
-              </button>
-            )}
-
-            {/* Icon */}
-            <div style={{width:32,height:32,borderRadius:9,background:'#1e1f2e',
-              border:'1px solid rgba(255,255,255,0.08)',display:'flex',alignItems:'center',
-              justifyContent:'center',fontSize:17,flexShrink:0}}>👾</div>
-
-            {/* Title */}
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{color:'#e2e8f0',fontWeight:700,fontSize:13,
-                display:'flex',alignItems:'center',gap:4,
-                overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                # {roomName}
-                {spectator&&<span style={{fontSize:9,background:'rgba(148,163,184,.15)',color:'#94a3b8',padding:'1px 5px',borderRadius:4}}>SPECTATOR</span>}
-              </div>
-              <div style={{fontSize:10,color:typingLabel?'#f59e0b':'#475569',
-                fontStyle:typingLabel?'italic':'normal',
-                overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                {typingLabel||`${users.length} online`}
-              </div>
-            </div>
-
-            {/* Anon toggle */}
-            {!spectator&&(
-              <button onClick={()=>setAnon(v=>!v)}
-                style={{width:30,height:30,borderRadius:8,flexShrink:0,
-                  background:anon?'rgba(107,114,128,0.25)':'transparent',
-                  border:`1px solid ${anon?'rgba(107,114,128,0.4)':'rgba(255,255,255,0.08)'}`,
-                  color:anon?'#d1d5db':'#475569',cursor:'pointer',
-                  fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',
-                  touchAction:'manipulation'}}>
-                👻
-              </button>
-            )}
-
-            {/* Room Brain */}
-            <button onClick={()=>setBrainOpen(v=>!v)}
-              style={{width:30,height:30,borderRadius:8,flexShrink:0,
-                background:'rgba(99,102,241,0.1)',
-                border:'1px solid rgba(99,102,241,0.2)',
-                color:'#6366f1',cursor:'pointer',fontSize:16,
-                display:'flex',alignItems:'center',justifyContent:'center',
-                touchAction:'manipulation'}}>
-              🧠
-            </button>
-
-            {/* Connection dot */}
-            <div style={{width:8,height:8,borderRadius:'50%',flexShrink:0,
-              background:connected?'#22c55e':'#ef4444',
-              animation:connected?'pulse 2s infinite':'none'}}/>
-          </div>
-
-          {/* Spectator banner */}
-          {spectator&&(
-            <div style={{background:'rgba(148,163,184,0.06)',
-              borderBottom:'1px solid rgba(148,163,184,0.1)',
-              padding:'7px 16px',textAlign:'center',color:'#94a3b8',fontSize:12}}>
-              👁 Spectator Mode — invisible &amp; read-only
-            </div>
-          )}
-
-          {/* Messages */}
-          <div ref={msgsRef} onScroll={handleScroll}
-            style={{flex:1,overflowY:'auto',overflowX:'hidden',
-              padding:'16px 14px 80px',
-              WebkitOverflowScrolling:'touch',
-              overscrollBehavior:'contain'}}>
-
-            {messages.length===0&&(
-              <div style={{height:'100%',display:'flex',flexDirection:'column',
-                alignItems:'center',justifyContent:'center',gap:12,
-                textAlign:'center',userSelect:'none'}}>
-                <div style={{fontSize:48,opacity:.2}}>👾</div>
-                <div style={{color:'#475569',fontSize:14}}>No messages yet — say hello!</div>
-                <div style={{display:'flex',flexWrap:'wrap',justifyContent:'center',gap:6}}>
-                  {['Hover to react 😊','5 reactions = 🎉','👻 Anon mode','🏠 Private rooms'].map(t=>(
-                    <span key={t} style={{fontSize:11,background:'rgba(255,255,255,0.04)',
-                      color:'#475569',border:'1px solid rgba(255,255,255,0.08)',
-                      borderRadius:8,padding:'3px 9px'}}>{t}</span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {messages.map((msg,idx)=>{
-              const isMe=msg.sender===sender;
-              const prev=messages[idx-1];
-              const showAv=!isMe&&msg.sender!==prev?.sender;
-              const gap=idx>0&&msg.sender===prev?.sender?2:12;
-              return (
-                <div key={msg.id||idx} style={{marginTop:gap}}>
-                  <Bubble msg={msg} isMe={isMe} showAv={showAv} showName={showAv&&!isMe}
-                    onReact={react} myName={sender} spectator={spectator} cinId={cinId}/>
-                </div>
-              );
-            })}
-
-            {/* Typing indicator */}
-            {typingLabel&&(
-              <div style={{display:'flex',alignItems:'flex-end',gap:8,marginTop:12}}>
-                <div style={{width:30,flexShrink:0}}/>
-                <div style={{background:'#1e1f2e',border:'1px solid rgba(255,255,255,0.06)',
-                  borderRadius:18,borderBottomLeftRadius:4,padding:'10px 14px',
-                  display:'flex',gap:5,alignItems:'center'}}>
-                  {[0,1,2].map(i=><div key={i} className="bounce" style={{width:6,height:6,
-                    borderRadius:'50%',background:'#475569',animationDelay:`${i*150}ms`}}/>)}
-                </div>
-              </div>
-            )}
-            <div ref={endRef}/>
-          </div>
-
-          {/* Scroll to bottom */}
-          {!atBottom&&(
-            <div style={{position:'absolute',bottom: imgPrev?128:74,
-              left:'50%',transform:'translateX(-50%)',zIndex:20}}>
-              <button onClick={()=>{
-                  const el=msgsRef.current;
-                  if(el){el.scrollTop=el.scrollHeight;setUnread(0);setAtBottom(true);}
-                }}
-                style={{display:'flex',alignItems:'center',gap:6,
-                  padding:'7px 16px',
-                  background:'linear-gradient(135deg,#6366f1,#9333ea)',
-                  color:'#fff',border:'none',borderRadius:20,cursor:'pointer',
-                  fontWeight:700,fontSize:12,
-                  boxShadow:'0 4px 20px rgba(99,102,241,0.5)',
-                  whiteSpace:'nowrap',touchAction:'manipulation'}}>
-                ↓ {unread>0?`${unread} new`:'Scroll down'}
-              </button>
-            </div>
-          )}
-
-          {/* Image preview */}
-          {imgPrev&&(
-            <div style={{margin:'0 14px 8px',padding:'10px 12px',background:'#1e1f2e',
-              border:'1px solid rgba(255,255,255,0.1)',borderRadius:12,
-              display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
-              <img src={imgPrev} alt="preview" style={{width:44,height:44,borderRadius:8,objectFit:'cover',flexShrink:0}}/>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{color:'#fff',fontSize:13,fontWeight:600}}>Image ready</div>
-                <div style={{color:'#475569',fontSize:11,marginTop:2}}>Enter to send · Esc to cancel</div>
-              </div>
-              <button onClick={()=>setImgPrev(null)} style={{background:'none',border:'none',
-                cursor:'pointer',color:'#64748b',fontSize:18,padding:4,flexShrink:0,touchAction:'manipulation'}}>×</button>
-            </div>
-          )}
-
-          {/* Input bar */}
-          {!spectator&&(
-            <div style={{
-              padding:'8px 14px',
-              paddingBottom:'max(10px, env(safe-area-inset-bottom))',
-              background:'#12131e',
-              borderTop:'1px solid rgba(255,255,255,0.06)',
-              flexShrink:0,
-            }}>
-              {anon&&(
-                <div style={{fontSize:11,color:'#9ca3af',marginBottom:6,
-                  display:'flex',alignItems:'center',gap:4}}>
-                  👻 <span>Sending as Anonymous</span>
-                </div>
-              )}
-              <div style={{display:'flex',alignItems:'center',gap:8,
-                background:'#1a1b2e',border:'1px solid rgba(255,255,255,0.1)',
-                borderRadius:24,padding:'6px 8px 6px 14px',minHeight:48,
-                transition:'border-color .2s'}}
-                onFocusCapture={e=>e.currentTarget.style.borderColor='rgba(99,102,241,0.5)'}
-                onBlurCapture={e=>e.currentTarget.style.borderColor='rgba(255,255,255,0.1)'}>
-
-                {/* Attach */}
-                <label style={{cursor:'pointer',color:'#475569',display:'flex',
-                  padding:6,borderRadius:8,flexShrink:0,touchAction:'manipulation'}}
-                  onMouseEnter={e=>e.currentTarget.style.color='#6366f1'}
-                  onMouseLeave={e=>e.currentTarget.style.color='#475569'}>
-                  📎
-                  <input type="file" accept="image/*" hidden onChange={handleFile}/>
-                </label>
-
-                <input ref={inputRef} value={message} onChange={handleTyping} onKeyDown={handleKey}
-                  placeholder={imgPrev?'Image attached…':anon?'Message as Anonymous…':'Message the group…'}
-                  disabled={!!imgPrev}
-                  style={{flex:1,background:'transparent',border:'none',outline:'none',
-                    color:'#fff',fontSize:16,padding:'4px 0',minWidth:0,
-                    fontFamily:'inherit'}}/>
-
-                <button onClick={send} disabled={!message.trim()&&!imgPrev}
-                  style={{width:36,height:36,borderRadius:'50%',border:'none',
-                    flexShrink:0,touchAction:'manipulation',
-                    background:(!message.trim()&&!imgPrev)?'rgba(255,255,255,0.05)':'linear-gradient(135deg,#6366f1,#9333ea)',
-                    color:'#fff',cursor:(!message.trim()&&!imgPrev)?'not-allowed':'pointer',
-                    opacity:(!message.trim()&&!imgPrev)?0.3:1,
-                    display:'flex',alignItems:'center',justifyContent:'center',
-                    fontSize:18,transition:'all .15s'}}>
-                  ➤
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
+// ── Typing indicator ──────────────────────────────────────────────────────────
+function updateTypingIndicator() {
+  updateHdrSub();
+  renderMessages();
+  if (STATE.atBottom) scrollToBottom();
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+// ── Scroll ────────────────────────────────────────────────────────────────────
+function onMsgsScroll() {
+  var el = document.getElementById('msgs');
+  var ab = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+  STATE.atBottom = ab;
+  if (ab) { STATE.unread=0; }
+  updateScrollBtn();
+}
+function scrollToBottom() {
+  var el = document.getElementById('msgs');
+  el.scrollTop = el.scrollHeight;
+  STATE.atBottom = true;
+  STATE.unread = 0;
+  updateScrollBtn();
+}
+function updateScrollBtn() {
+  var btn = document.getElementById('scroll-btn');
+  var lbl = document.getElementById('scroll-label');
+  if (!STATE.atBottom) {
+    btn.style.display = 'flex';
+    lbl.textContent = STATE.unread>0 ? STATE.unread+' new' : 'Scroll down';
+  } else {
+    btn.style.display = 'none';
+  }
+}
+var _badgeEl = document.getElementById('unread-badge');
+function updateUnreadBadge() {
+  if (STATE.unread > 0) {
+    _badgeEl.style.display = 'flex';
+    _badgeEl.textContent = STATE.unread;
+  } else {
+    _badgeEl.style.display = 'none';
+  }
+}
+
+// ── Lightbox ──────────────────────────────────────────────────────────────────
+function openLightbox(src) {
+  var el = document.createElement('div');
+  el.style.cssText = 'position:fixed;inset:0;z-index:800;background:rgba(0,0,0,.95);display:flex;align-items:center;justify-content:center;cursor:zoom-out';
+  el.innerHTML = '<img src="'+esc(src)+'" style="max-width:90vw;max-height:90vh;border-radius:12px"><button onclick="this.parentNode.remove()" style="position:absolute;top:16px;right:16px;background:rgba(255,255,255,.1);border:none;color:#fff;font-size:20px;width:36px;height:36px;border-radius:50%;cursor:pointer">×</button>';
+  el.onclick = function(e){ if(e.target===el) el.remove(); };
+  document.body.appendChild(el);
+}
+
+// ── Confetti ──────────────────────────────────────────────────────────────────
+function launchConfetti() {
+  var cols = ['#6366f1','#ec4899','#f59e0b','#10b981','#f97316','#8b5cf6'];
+  for (var i=0; i<55; i++) {
+    (function(i) {
+      var el = document.createElement('div');
+      el.className = 'confetti-p';
+      el.style.left = Math.random()*100+'%';
+      el.style.background = cols[i%cols.length];
+      el.style.width = el.style.height = (6+Math.random()*8)+'px';
+      var dur = 1.8+Math.random()*0.8, dl = Math.random();
+      el.style.animation = 'fall '+dur+'s '+dl+'s ease-in forwards';
+      document.body.appendChild(el);
+      setTimeout(function(){ el.remove(); }, (dur+dl+0.2)*1000);
+    })(i);
+  }
+}
+
+// ── Moderation block ──────────────────────────────────────────────────────────
+function showModBlock(reason, msg) {
+  var icons = {profanity:'⚖️', illegal:'🚫', sexual:'🛡️'};
+  document.getElementById('mod-icon').textContent = icons[reason]||'⚠️';
+  document.getElementById('mod-msg').textContent = msg;
+  document.getElementById('mod-modal').style.display = 'flex';
+}
+function closeModModal() { document.getElementById('mod-modal').style.display='none'; }
+
+// ── Rooms ─────────────────────────────────────────────────────────────────────
+var _currentRoomTab = 'join';
+function openRooms() {
+  document.getElementById('rooms-modal').style.display = 'flex';
+  switchRoomTab('join');
+  socket.emit('list rooms');
+  toggleSidebar(false);
+}
+function closeRooms() { document.getElementById('rooms-modal').style.display='none'; }
+function switchRoomTab(tab) {
+  _currentRoomTab = tab;
+  ['join','create','browse'].forEach(function(t) {
+    var el = document.getElementById('tab-'+t);
+    el.style.background = t===tab?'rgba(99,102,241,.3)':'transparent';
+    el.style.color = t===tab?'#a5b4fc':'#64748b';
+  });
+  renderRoomTab();
+}
+function renderRoomTab() {
+  var el = document.getElementById('room-tab-content');
+  if (_currentRoomTab==='join') {
+    el.innerHTML = '<div style="display:flex;flex-direction:column;gap:12px">'
+      +'<input class="inp" id="r-code" type="text" placeholder="Room code (e.g. AB12CD)" maxlength="6" oninput="this.value=this.value.toUpperCase()" style="letter-spacing:8px;font-family:monospace;font-size:22px;font-weight:700">'
+      +'<input class="inp" id="r-pass" type="password" placeholder="Password (if required)">'
+      +'<label style="display:flex;align-items:center;gap:10px;cursor:pointer;color:#94a3b8;font-size:13px"><input type="checkbox" id="r-spec" style="accent-color:#6366f1;width:16px;height:16px"> 👁 Join as Spectator</label>'
+      +'<button class="btn btn-primary" onclick="doJoinRoom()">Join Room →</button>'
+      +'</div>';
+  } else if (_currentRoomTab==='create') {
+    el.innerHTML = '<div style="display:flex;flex-direction:column;gap:12px">'
+      +'<input class="inp" id="r-name" type="text" placeholder="Room name…" maxlength="30">'
+      +'<input class="inp" id="r-cpass" type="password" placeholder="🔒 Password (optional)">'
+      +'<button class="btn btn-primary" onclick="doCreateRoom()" style="background:linear-gradient(135deg,#10b981,#059669)">Create Private Room</button>'
+      +'</div>';
+  } else {
+    el.innerHTML = '<div id="browse-list"><div style="color:#475569;text-align:center;padding:24px 0;font-size:13px">Loading…</div></div>';
+    socket.emit('list rooms');
+  }
+}
+function doJoinRoom() {
+  var code = (document.getElementById('r-code')||{}).value||'';
+  var pass = (document.getElementById('r-pass')||{}).value||'';
+  var spec = (document.getElementById('r-spec')||{}).checked||false;
+  if (code.length<4) return;
+  socket.emit('join',{username:STATE.sender,room:code.toUpperCase(),password:pass,spectator:spec});
+}
+function doCreateRoom() {
+  var name = (document.getElementById('r-name')||{}).value||'';
+  var pass = (document.getElementById('r-cpass')||{}).value||'';
+  if (!name.trim()) return;
+  socket.emit('create room',{name:name.trim(),password:pass,username:STATE.sender});
+}
+function handleRoomCreated(data) {
+  var el = document.getElementById('room-tab-content');
+  el.innerHTML = '<div style="text-align:center;display:flex;flex-direction:column;align-items:center;gap:16px;padding-top:8px">'
+    +'<div style="font-size:44px">🎉</div>'
+    +'<div style="color:#fff;font-weight:700;font-size:20px">'+esc(data.name)+'</div>'
+    +'<div style="background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.3);border-radius:14px;padding:16px 24px;width:100%">'
+    +'<div style="color:#94a3b8;font-size:11px;margin-bottom:6px;text-transform:uppercase;letter-spacing:.1em">Room Code</div>'
+    +'<div style="color:#a5b4fc;font-size:32px;font-weight:900;letter-spacing:12px;font-family:monospace">'+esc(data.roomId)+'</div>'
+    +'</div>'
+    +'<div style="color:#64748b;font-size:12px">Share this code with friends</div>'
+    +'<div style="display:flex;gap:8px;width:100%">'
+    +'<button class="btn btn-ghost" onclick="copyCode(\''+esc(data.roomId)+'\')" style="flex:1">📋 Copy</button>'
+    +'<button class="btn btn-primary" onclick="socket.emit(\'join\',{username:STATE.sender,room:\''+esc(data.roomId)+'\',password:\''+esc(data.password||'')+'\',spectator:false});closeRooms()" style="flex:1">Enter →</button>'
+    +'</div></div>';
+}
+function handleRoomList(list) {
+  var el = document.getElementById('browse-list');
+  if (!el) return;
+  if (!list||!list.length) { el.innerHTML='<div style="color:#475569;text-align:center;padding:24px 0;font-size:13px">No public rooms yet</div>'; return; }
+  var html='';
+  list.forEach(function(r) {
+    html+='<div onclick="socket.emit(\'join\',{username:STATE.sender,room:\''+esc(r.id)+'\',password:\'\',spectator:false});closeRooms()" style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:rgba(255,255,255,.04);border-radius:12px;cursor:pointer;border:1px solid rgba(255,255,255,.07);margin-bottom:8px">'
+      +'<div><div style="color:#fff;font-weight:600;font-size:14px">#'+esc(r.name)+'</div><div style="color:#475569;font-size:11px">'+r.count+' online</div></div>'
+      +'<span style="color:#6366f1;font-size:12px;font-weight:600">Join →</span></div>';
+  });
+  el.innerHTML=html;
+}
+function copyCode(code) {
+  if (navigator.clipboard) navigator.clipboard.writeText(code).catch(function(){});
+  showToast('Code copied!','#10b981');
+}
+
+// ── Room Brain ────────────────────────────────────────────────────────────────
+function openBrain() {
+  var el = document.getElementById('brain-panel');
+  el.style.display = 'flex';
+  runBrain();
+}
+function closeBrain() { document.getElementById('brain-panel').style.display='none'; }
+function runBrain() {
+  var msgs = STATE.messages.filter(function(m){ return m.message; }).slice(-40);
+  var summaryEl = document.getElementById('brain-summary');
+  if (msgs.length<3) { summaryEl.textContent='Not enough messages yet. Keep chatting!'; return; }
+  summaryEl.innerHTML='<div style="display:flex;align-items:center;gap:10px"><div class="spinner"></div><span style="color:#475569;font-size:13px">Analyzing…</span></div>';
+  var transcript = msgs.map(function(m){ return m.sender+': '+m.message; }).join('\n');
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST','https://api.anthropic.com/v1/messages',true);
+  xhr.setRequestHeader('Content-Type','application/json');
+  xhr.onload = function() {
+    try {
+      var data = JSON.parse(xhr.responseText);
+      var text = (data.content&&data.content[0]&&data.content[0].text)||'';
+      text = text.replace(/```json|```/g,'').trim();
+      var parsed = JSON.parse(text);
+      summaryEl.textContent = parsed.summary||'';
+      // Mood
+      if (parsed.mood) {
+        var moodCols={hype:'#f97316',chill:'#06b6d4',serious:'#6366f1',funny:'#10b981',mixed:'#f59e0b'};
+        var col=moodCols[parsed.mood]||'#6366f1';
+        var moodEl=document.getElementById('brain-mood');
+        moodEl.style.cssText='display:flex;background:'+col+'18;border:1px solid '+col+'33;border-radius:12px;padding:12px 14px;align-items:center;gap:10px';
+        moodEl.innerHTML='<span style="font-size:20px">✨</span><div><div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.08em">Room Mood</div><div style="color:'+col+';font-weight:700;text-transform:capitalize;margin-top:2px">'+esc(parsed.mood)+'</div></div>';
+      }
+      // Topics
+      if (parsed.topics&&parsed.topics.length) {
+        var tw=document.getElementById('brain-topics-wrap');
+        tw.style.display='block';
+        var tp=document.getElementById('brain-topics');
+        tp.innerHTML=parsed.topics.map(function(t){ return '<span style="background:rgba(99,102,241,.15);color:#a5b4fc;border:1px solid rgba(99,102,241,.25);border-radius:8px;padding:3px 10px;font-size:12px">'+esc(t)+'</span>'; }).join('');
+      }
+      // Stats
+      var stats=[
+        {l:'Messages',v:STATE.messages.filter(function(m){return m.message;}).length},
+        {l:'Members',v:(function(){var s={};STATE.messages.forEach(function(m){s[m.sender]=1;});return Object.keys(s).length;})()},
+        {l:'Reactions',v:STATE.messages.reduce(function(a,m){return a+Object.values(m.reactions||{}).reduce(function(b,u){return b+u.length;},0);},0)},
+        {l:'Anonymous',v:STATE.messages.filter(function(m){return m.isAnon;}).length},
+      ];
+      document.getElementById('brain-stats').innerHTML=stats.map(function(s){
+        return '<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:12px;text-align:center"><div style="color:#6366f1;font-weight:800;font-size:22px;line-height:1">'+s.v+'</div><div style="color:#475569;font-size:10px;margin-top:4px">'+s.l+'</div></div>';
+      }).join('');
+    } catch(e) { summaryEl.textContent='Could not generate summary. Try again.'; }
+  };
+  xhr.onerror=function(){ summaryEl.textContent='Network error. Try again.'; };
+  xhr.send(JSON.stringify({
+    model:'claude-sonnet-4-6',max_tokens:1000,
+    messages:[{role:'user',content:'Analyze this chat. Reply ONLY with valid JSON, no markdown:\n{"summary":"2-3 casual sentences","topics":["t1","t2","t3"],"mood":"hype|chill|serious|funny|mixed"}\n\nChat:\n'+transcript}]
+  }));
+}
+
+// ── Init draw avatars ─────────────────────────────────────────────────────────
+drawAvatar(document.getElementById('my-avatar'), '', 36);
+drawAvatar(document.getElementById('join-avatar'), 'You', 88);
+
+// ── Keyboard/visual viewport fix for iOS ──────────────────────────────────────
+// When iOS keyboard opens, the visual viewport shrinks.
+// We listen to resize and adjust the card height accordingly.
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', function() {
+    var card = document.getElementById('card');
+    var h = window.visualViewport.height;
+    card.style.height = h + 'px';
+    card.style.maxHeight = h + 'px';
+  });
+}
 </script>
 </body>
 </html>
