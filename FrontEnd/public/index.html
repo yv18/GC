@@ -116,7 +116,7 @@ body{overscroll-behavior:none}
 /* ── SIDEBAR ──────────────────────────────────────────────────── */
 .sidebar{width:272px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;background:var(--sb-bg);border-right:1px solid var(--border);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);transition:background .3s,border-color .3s}
 @media(max-width:767px){
-  .sidebar{position:absolute;inset-y:0;left:0;z-index:300;width:min(288px,88vw);transform:translateX(-100%);-webkit-transform:translateX(-100%);transition:transform .3s cubic-bezier(.4,0,.2,1);box-shadow:8px 0 32px rgba(0,0,0,.3)}
+  .sidebar{position:fixed;top:0;bottom:0;left:0;z-index:300;width:min(288px,88vw);transform:translateX(-100%);-webkit-transform:translateX(-100%);transition:transform .3s cubic-bezier(.4,0,.2,1);box-shadow:8px 0 32px rgba(0,0,0,.3);height:100%;max-height:none}
   .sidebar.open{transform:translateX(0);-webkit-transform:translateX(0)}
 }
 .sb-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:299;backdrop-filter:blur(4px)}
@@ -744,6 +744,10 @@ socket.on('disconnect',function(){S.connected=false;updateConn();showToast('Reco
 socket.on('chat history',function(h){ S.messages=(h||[]).map(function(m){return Object.assign({reactions:{}},m,{id:m.id||makeId()});}); renderMsgs(); scrollToBottom(); });
 socket.on('chat message',function(data){
   var msg=Object.assign({reactions:{}},data,{id:data.id||makeId()});
+  // If we already have this exact message id locally (sender added it optimistically), skip
+  for(var i=S.messages.length-1;i>=Math.max(0,S.messages.length-20);i--){
+    if(S.messages[i].id===msg.id) return; // already have it
+  }
   if(data.sender!==S.sender&&msg.message){
     if(msg.message.toLowerCase().indexOf(S.sender.toLowerCase())!==-1) showToast(data.sender+' mentioned you','alternate_email','#6366f1');
     if(!S.atBottom){S.unread++;updateScrollBtn();updateUnreadBadge();}
@@ -945,18 +949,20 @@ function renderMsgs(){
     var rxHtml='';
     if(rx.length){
       rxHtml='<div class="rx-chips" style="justify-content:'+(isMe?'flex-end':'flex-start')+'">';
-      rx.forEach(function(e){
-        var users=msg.reactions[e],mine=users.indexOf(S.sender)!==-1;
-        rxHtml+='<button class="rx-chip'+(mine?' mine':'')+'" onclick="reactTo(\''+esc(msg.id)+'\',\''+e+'\')" title="'+esc(users.join(', '))+'">'+e+'<span class="rx-count">'+users.length+'</span></button>';
+      rx.forEach(function(emoji,ri){
+        var users=msg.reactions[emoji],mine=users.indexOf(S.sender)!==-1;
+        rxHtml+='<button class="rx-chip'+(mine?' mine':'')+'" data-msgid="'+esc(msg.id)+'" data-ri="'+REACTIONS.indexOf(emoji)+'" onmousedown="onChipBtn(event)" ontouchend="onChipBtn(event)" title="'+esc(users.join(', '))+'">'+emoji+'<span class="rx-count">'+users.length+'</span></button>';
       });
       rxHtml+='</div>';
     }
 
-    // Picker
+    // Picker - use data-emoji attr to avoid unicode quoting issues in HTML onclick
     var pickerHtml='';
     if(S.pickerOpen===msg.id){
-      pickerHtml='<div class="rx-picker" id="picker-'+esc(msg.id)+'" style="align-self:'+(isMe?'flex-end':'flex-start')+'">';
-      REACTIONS.forEach(function(e){ pickerHtml+='<button class="rx-btn btn" onclick="pickReaction(\''+esc(msg.id)+'\',\''+e+'\')">'+e+'</button>'; });
+      pickerHtml='<div class="rx-picker" id="picker-'+esc(msg.id)+'" style="align-self:'+(isMe?'flex-end':'flex-start')+'" onmousedown="event.stopPropagation()" ontouchend="event.stopPropagation()">';
+      REACTIONS.forEach(function(emoji,ri){
+        pickerHtml+='<button class="rx-btn btn" data-msgid="'+esc(msg.id)+'" data-ri="'+ri+'" onmousedown="onPickerBtn(event)" ontouchend="onPickerBtn(event)">'+emoji+'</button>';
+      });
       pickerHtml+='</div>';
     }
 
@@ -964,7 +970,7 @@ function renderMsgs(){
     var nameHtml=showAv&&!isMe?'<div class="sender-name" style="color:'+accentCol(msg.isAnon?'Ghost':msg.sender)+'">'+(msg.isAnon?'Mystery Guest':esc(msg.sender))+'</div>':'';
 
     // React btn
-    var reactBtn=!S.spectator?'<button class="react-hover-btn btn" onclick="openPicker(\''+esc(msg.id)+'\')"><span class="mi" style="font-size:16px">add_reaction</span></button>':'';
+    var reactBtn=!S.spectator?'<button class="react-hover-btn btn" data-msgid="'+esc(msg.id)+'" onmousedown="onReactBtn(event)" ontouchend="onReactBtn(event)"><span class="mi" style="font-size:16px">add_reaction</span></button>':'';
 
     html+='<div style="margin-top:'+gap+'px">'
       +'<div class="bubble-row'+(isMe?' me':'')+'">'
@@ -993,22 +999,60 @@ function renderMsgs(){
 }
 
 /* ── PICKER ─────────────────────────────────────────────────────── */
-function openPicker(id){ S.pickerOpen=S.pickerOpen===id?null:id; renderMsgs(); }
-function pickReaction(id,e){ S.pickerOpen=null; reactTo(id,e); }
-document.addEventListener('click',function(e){
+function onReactBtn(e){
+  e.stopPropagation();e.preventDefault();
+  var btn=e.currentTarget||e.target;
+  var id=btn.getAttribute('data-msgid')||btn.closest('[data-msgid]').getAttribute('data-msgid');
+  openPicker(id);
+}
+function onPickerBtn(e){
+  e.stopPropagation();e.preventDefault();
+  var btn=e.currentTarget||e.target.closest('[data-ri]');
+  if(!btn)return;
+  var id=btn.getAttribute('data-msgid');
+  var ri=parseInt(btn.getAttribute('data-ri'),10);
+  var emoji=REACTIONS[ri];
+  if(!emoji||!id)return;
+  S.pickerOpen=null;
+  reactTo(id,emoji);
+}
+function onChipBtn(e){
+  e.stopPropagation();e.preventDefault();
+  var btn=e.currentTarget||e.target;
+  while(btn&&!btn.getAttribute('data-msgid'))btn=btn.parentNode;
+  if(!btn)return;
+  var id=btn.getAttribute('data-msgid');
+  var ri=parseInt(btn.getAttribute('data-ri'),10);
+  // Get emoji from REACTIONS array by index, fallback to first char of button text
+  var emoji=(!isNaN(ri)&&ri>=0)?REACTIONS[ri]:null;
+  if(!emoji){
+    // Fallback: first text node in the button
+    var tn=btn.firstChild;
+    while(tn&&tn.nodeType!==3)tn=tn.nextSibling;
+    emoji=tn?tn.nodeValue.trim():null;
+  }
+  if(!emoji||!id)return;
+  reactTo(id,emoji);
+}
+function openPicker(id){
+  S.pickerOpen=S.pickerOpen===id?null:id;
+  renderMsgs();
+  if(S.atBottom)scrollToBottom();
+}
+// Close picker when clicking outside
+document.addEventListener('mousedown',function(e){
   if(!S.pickerOpen)return;
   var p=document.getElementById('picker-'+S.pickerOpen);
   if(p&&!p.contains(e.target)){S.pickerOpen=null;renderMsgs();}
 },true);
-// Long-press mobile
+// Long-press for mobile
 var _lp=null;
 document.addEventListener('touchstart',function(e){
-  var b=e.target.closest('.bubble'); if(!b||S.spectator)return;
-  var row=b.closest('.bubble-row'); if(!row)return;
-  var rb=row.querySelector('.react-hover-btn'); if(!rb)return;
-  var oc=rb.getAttribute('onclick'); if(!oc)return;
-  var m=/openPicker\('([^']+)'\)/.exec(oc); if(!m)return;
-  _lp=setTimeout(function(){openPicker(m[1]);},450);
+  var b=e.target.closest&&e.target.closest('.bubble');if(!b||S.spectator)return;
+  var row=b.closest('.bubble-row');if(!row)return;
+  var rb=row.querySelector('.react-hover-btn');if(!rb)return;
+  var id=rb.getAttribute('data-msgid');if(!id)return;
+  _lp=setTimeout(function(){openPicker(id);},450);
 },{passive:true});
 document.addEventListener('touchend',function(){clearTimeout(_lp);},{passive:true});
 document.addEventListener('touchmove',function(){clearTimeout(_lp);},{passive:true});
@@ -1016,9 +1060,9 @@ document.addEventListener('touchmove',function(){clearTimeout(_lp);},{passive:tr
 /* ── REACT ──────────────────────────────────────────────────────── */
 var _cinTrack={};
 function reactTo(msgId,emoji){
-  if(S.spectator)return;
+  if(S.spectator||!emoji||!msgId)return;
   for(var i=0;i<S.messages.length;i++){
-    var m=S.messages[i]; if(m.id!==msgId)continue;
+    var m=S.messages[i];if(m.id!==msgId)continue;
     if(!m.reactions)m.reactions={};
     if(!m.reactions[emoji])m.reactions[emoji]=[];
     var idx=m.reactions[emoji].indexOf(S.sender);
@@ -1028,6 +1072,7 @@ function reactTo(msgId,emoji){
   }
   socket.emit('reaction',{msgId:msgId,emoji:emoji,user:S.sender});
   renderMsgs();
+  if(S.atBottom)scrollToBottom();
   if(!_cinTrack[msgId])_cinTrack[msgId]=[];
   _cinTrack[msgId].push(Date.now());
   _cinTrack[msgId]=_cinTrack[msgId].filter(function(t){return Date.now()-t<10000;});
@@ -1050,7 +1095,10 @@ function sendMessage(){
   if(S.spectator)return;
   var inp=document.getElementById('msg-input');
   if(S.imgPreview){
-    socket.emit('chat message',{id:makeId(),sender:S.sender,image:S.imgPreview,time:nowTime(),reactions:{},isAnon:S.anon});
+    var imgMsg={id:makeId(),sender:S.sender,image:S.imgPreview,time:nowTime(),reactions:{},isAnon:S.anon};
+    S.messages.push(imgMsg);
+    socket.emit('chat message',imgMsg);
+    renderMsgs();scrollToBottom();
     clearImgPreview();return;
   }
   var text=inp.value.trim();if(!text)return;
@@ -1058,7 +1106,12 @@ function sendMessage(){
   if(mod.blocked){showModBlock(mod.reason,mod.msg);return;}
   var effect=null;
   for(var i=0;i<CONSEQ.length;i++){if(CONSEQ[i].t.test(text)){effect=CONSEQ[i].e;showToast(CONSEQ[i].m,'auto_fix_high','#f59e0b');break;}}
-  socket.emit('chat message',{id:makeId(),sender:S.anon?'Anonymous':S.sender,message:text,time:nowTime(),reactions:{},effect:effect,isAnon:S.anon});
+  var msgObj={id:makeId(),sender:S.anon?'Anonymous':S.sender,message:text,time:nowTime(),reactions:{},effect:effect,isAnon:S.anon};
+  // Add locally first so sender sees message instantly
+  S.messages.push(msgObj);
+  renderMsgs();
+  scrollToBottom();
+  socket.emit('chat message',msgObj);
   inp.value='';
   document.getElementById('send-btn').className='sendbtn inactive';
   clearTimeout(_typT);socket.emit('stop typing',{sender:S.sender});
