@@ -949,19 +949,20 @@ function renderMsgs(){
     var rxHtml='';
     if(rx.length){
       rxHtml='<div class="rx-chips" style="justify-content:'+(isMe?'flex-end':'flex-start')+'">';
-      rx.forEach(function(emoji,ri){
+      rx.forEach(function(emoji){
         var users=msg.reactions[emoji],mine=users.indexOf(S.sender)!==-1;
-        rxHtml+='<button class="rx-chip'+(mine?' mine':'')+'" data-msgid="'+esc(msg.id)+'" data-ri="'+REACTIONS.indexOf(emoji)+'" onmousedown="onChipBtn(event)" ontouchend="onChipBtn(event)" title="'+esc(users.join(', '))+'">'+emoji+'<span class="rx-count">'+users.length+'</span></button>';
+        var ri=REACTIONS.indexOf(emoji);
+        rxHtml+='<button class="rx-chip'+(mine?' mine':'')+'" data-msgid="'+esc(msg.id)+'" data-ri="'+ri+'" title="'+esc(users.join(', '))+'">'+emoji+'<span class="rx-count">'+users.length+'</span></button>';
       });
       rxHtml+='</div>';
     }
 
-    // Picker - use data-emoji attr to avoid unicode quoting issues in HTML onclick
+    // Picker
     var pickerHtml='';
     if(S.pickerOpen===msg.id){
-      pickerHtml='<div class="rx-picker" id="picker-'+esc(msg.id)+'" style="align-self:'+(isMe?'flex-end':'flex-start')+'" onmousedown="event.stopPropagation()" ontouchend="event.stopPropagation()">';
+      pickerHtml='<div class="rx-picker" id="picker-'+esc(msg.id)+'" style="align-self:'+(isMe?'flex-end':'flex-start')+'">';
       REACTIONS.forEach(function(emoji,ri){
-        pickerHtml+='<button class="rx-btn btn" data-msgid="'+esc(msg.id)+'" data-ri="'+ri+'" onmousedown="onPickerBtn(event)" ontouchend="onPickerBtn(event)">'+emoji+'</button>';
+        pickerHtml+='<button class="rx-btn btn" data-msgid="'+esc(msg.id)+'" data-ri="'+ri+'">'+emoji+'</button>';
       });
       pickerHtml+='</div>';
     }
@@ -969,8 +970,8 @@ function renderMsgs(){
     // Sender name
     var nameHtml=showAv&&!isMe?'<div class="sender-name" style="color:'+accentCol(msg.isAnon?'Ghost':msg.sender)+'">'+(msg.isAnon?'Mystery Guest':esc(msg.sender))+'</div>':'';
 
-    // React btn
-    var reactBtn=!S.spectator?'<button class="react-hover-btn btn" data-msgid="'+esc(msg.id)+'" onmousedown="onReactBtn(event)" ontouchend="onReactBtn(event)"><span class="mi" style="font-size:16px">add_reaction</span></button>':'';
+    // React btn — no inline handlers, delegated listener handles it
+    var reactBtn=!S.spectator?'<button class="react-hover-btn btn" data-msgid="'+esc(msg.id)+'"><span class="mi" style="font-size:16px">add_reaction</span></button>':'';
 
     html+='<div style="margin-top:'+gap+'px">'
       +'<div class="bubble-row'+(isMe?' me':'')+'">'
@@ -998,64 +999,110 @@ function renderMsgs(){
   el.innerHTML=html;
 }
 
-/* ── PICKER ─────────────────────────────────────────────────────── */
-function onReactBtn(e){
-  e.stopPropagation();e.preventDefault();
-  var btn=e.currentTarget||e.target;
-  var id=btn.getAttribute('data-msgid')||btn.closest('[data-msgid]').getAttribute('data-msgid');
-  openPicker(id);
-}
-function onPickerBtn(e){
-  e.stopPropagation();e.preventDefault();
-  var btn=e.currentTarget||e.target.closest('[data-ri]');
-  if(!btn)return;
-  var id=btn.getAttribute('data-msgid');
-  var ri=parseInt(btn.getAttribute('data-ri'),10);
-  var emoji=REACTIONS[ri];
-  if(!emoji||!id)return;
-  S.pickerOpen=null;
-  reactTo(id,emoji);
-}
-function onChipBtn(e){
-  e.stopPropagation();e.preventDefault();
-  var btn=e.currentTarget||e.target;
-  while(btn&&!btn.getAttribute('data-msgid'))btn=btn.parentNode;
-  if(!btn)return;
-  var id=btn.getAttribute('data-msgid');
-  var ri=parseInt(btn.getAttribute('data-ri'),10);
-  // Get emoji from REACTIONS array by index, fallback to first char of button text
-  var emoji=(!isNaN(ri)&&ri>=0)?REACTIONS[ri]:null;
-  if(!emoji){
-    // Fallback: first text node in the button
-    var tn=btn.firstChild;
-    while(tn&&tn.nodeType!==3)tn=tn.nextSibling;
-    emoji=tn?tn.nodeValue.trim():null;
+/* ── PICKER & REACTION — single delegated listener, no inline handlers ── */
+var _pickerHandled = false; // prevent double-fire on mobile (mousedown+touchend)
+
+document.addEventListener('DOMContentLoaded', function() {
+  // Delegate all interaction to the msgs container
+  var msgsEl = document.getElementById('msgs');
+
+  function handleInteraction(e) {
+    if (_pickerHandled) return;
+
+    var target = e.target;
+
+    // Walk up to find the interactive element
+    var reactBtn   = target.closest && target.closest('.react-hover-btn');
+    var pickerBtn  = target.closest && target.closest('.rx-btn');
+    var chipBtn    = target.closest && target.closest('.rx-chip');
+
+    if (reactBtn) {
+      e.stopPropagation();
+      e.preventDefault();
+      _pickerHandled = true;
+      setTimeout(function(){ _pickerHandled = false; }, 400);
+      var id = reactBtn.getAttribute('data-msgid');
+      if (!id) return;
+      S.pickerOpen = S.pickerOpen === id ? null : id;
+      renderMsgs();
+      return;
+    }
+
+    if (pickerBtn) {
+      e.stopPropagation();
+      e.preventDefault();
+      _pickerHandled = true;
+      setTimeout(function(){ _pickerHandled = false; }, 400);
+      var id  = pickerBtn.getAttribute('data-msgid');
+      var ri  = parseInt(pickerBtn.getAttribute('data-ri'), 10);
+      var emoji = REACTIONS[ri];
+      if (!id || !emoji) return;
+      S.pickerOpen = null;
+      reactTo(id, emoji);
+      return;
+    }
+
+    if (chipBtn) {
+      e.stopPropagation();
+      e.preventDefault();
+      _pickerHandled = true;
+      setTimeout(function(){ _pickerHandled = false; }, 400);
+      var id  = chipBtn.getAttribute('data-msgid');
+      var ri  = parseInt(chipBtn.getAttribute('data-ri'), 10);
+      var emoji = REACTIONS[ri];
+      if (!id || !emoji) return;
+      reactTo(id, emoji);
+      return;
+    }
+
+    // Clicked outside picker — close it
+    if (S.pickerOpen) {
+      var picker = document.getElementById('picker-' + S.pickerOpen);
+      if (!picker || !picker.contains(target)) {
+        S.pickerOpen = null;
+        renderMsgs();
+      }
+    }
   }
-  if(!emoji||!id)return;
-  reactTo(id,emoji);
-}
-function openPicker(id){
-  S.pickerOpen=S.pickerOpen===id?null:id;
+
+  // Use both click and touchend — the _pickerHandled flag prevents double-fire
+  msgsEl.addEventListener('click',    handleInteraction, false);
+  msgsEl.addEventListener('touchend', handleInteraction, false);
+
+  // Also close picker when clicking anywhere outside msgs
+  document.addEventListener('click', function(e) {
+    if (!S.pickerOpen) return;
+    var msgsEl2 = document.getElementById('msgs');
+    if (msgsEl2 && !msgsEl2.contains(e.target)) {
+      S.pickerOpen = null;
+      renderMsgs();
+    }
+  }, false);
+});
+
+// Long-press for mobile (open picker)
+var _lp = null;
+document.addEventListener('touchstart', function(e) {
+  var b = e.target.closest && e.target.closest('.bubble');
+  if (!b || S.spectator) return;
+  var row = b.closest('.bubble-row');
+  if (!row) return;
+  var rb = row.querySelector('.react-hover-btn');
+  if (!rb) return;
+  var id = rb.getAttribute('data-msgid');
+  if (!id) return;
+  _lp = setTimeout(function() {
+    S.pickerOpen = S.pickerOpen === id ? null : id;
+    renderMsgs();
+  }, 480);
+}, { passive: true });
+document.addEventListener('touchend',  function() { clearTimeout(_lp); }, { passive: true });
+document.addEventListener('touchmove', function() { clearTimeout(_lp); }, { passive: true });
+
+function openPicker(id) { // kept for compatibility
+  S.pickerOpen = S.pickerOpen === id ? null : id;
   renderMsgs();
-  if(S.atBottom)scrollToBottom();
 }
-// Close picker when clicking outside
-document.addEventListener('mousedown',function(e){
-  if(!S.pickerOpen)return;
-  var p=document.getElementById('picker-'+S.pickerOpen);
-  if(p&&!p.contains(e.target)){S.pickerOpen=null;renderMsgs();}
-},true);
-// Long-press for mobile
-var _lp=null;
-document.addEventListener('touchstart',function(e){
-  var b=e.target.closest&&e.target.closest('.bubble');if(!b||S.spectator)return;
-  var row=b.closest('.bubble-row');if(!row)return;
-  var rb=row.querySelector('.react-hover-btn');if(!rb)return;
-  var id=rb.getAttribute('data-msgid');if(!id)return;
-  _lp=setTimeout(function(){openPicker(id);},450);
-},{passive:true});
-document.addEventListener('touchend',function(){clearTimeout(_lp);},{passive:true});
-document.addEventListener('touchmove',function(){clearTimeout(_lp);},{passive:true});
 
 /* ── REACT ──────────────────────────────────────────────────────── */
 var _cinTrack={};
@@ -1092,30 +1139,59 @@ function onInputKey(e){
   if(e.key==='Escape')clearImgPreview();
 }
 function sendMessage(){
-  if(S.spectator)return;
+  if(!S.ready||S.spectator)return;
   var inp=document.getElementById('msg-input');
+  if(!inp)return;
+
   if(S.imgPreview){
     var imgMsg={id:makeId(),sender:S.sender,image:S.imgPreview,time:nowTime(),reactions:{},isAnon:S.anon};
     S.messages.push(imgMsg);
     socket.emit('chat message',imgMsg);
-    renderMsgs();scrollToBottom();
-    clearImgPreview();return;
+    clearImgPreview();
+    renderMsgs();
+    scrollToBottom();
+    return;
   }
-  var text=inp.value.trim();if(!text)return;
+
+  var text=inp.value.trim();
+  if(!text)return;
+
   var mod=moderate(text);
   if(mod.blocked){showModBlock(mod.reason,mod.msg);return;}
+
   var effect=null;
-  for(var i=0;i<CONSEQ.length;i++){if(CONSEQ[i].t.test(text)){effect=CONSEQ[i].e;showToast(CONSEQ[i].m,'auto_fix_high','#f59e0b');break;}}
-  var msgObj={id:makeId(),sender:S.anon?'Anonymous':S.sender,message:text,time:nowTime(),reactions:{},effect:effect,isAnon:S.anon};
-  // Add locally first so sender sees message instantly
+  for(var i=0;i<CONSEQ.length;i++){
+    if(CONSEQ[i].t.test(text)){effect=CONSEQ[i].e;showToast(CONSEQ[i].m,'auto_fix_high','#f59e0b');break;}
+  }
+
+  var msgObj={
+    id:makeId(),
+    sender:S.anon?'Anonymous':S.sender,
+    message:text,
+    time:nowTime(),
+    reactions:{},
+    effect:effect,
+    isAnon:S.anon
+  };
+
+  // Clear input FIRST before any DOM updates
+  inp.value='';
+  document.getElementById('send-btn').className='sendbtn inactive';
+
+  // Add to local state and render
   S.messages.push(msgObj);
   renderMsgs();
   scrollToBottom();
-  socket.emit('chat message',msgObj);
-  inp.value='';
-  document.getElementById('send-btn').className='sendbtn inactive';
-  clearTimeout(_typT);socket.emit('stop typing',{sender:S.sender});
-  setTimeout(function(){inp.focus();},50);
+
+  // Emit to server
+  socket.emit('chat message', msgObj);
+
+  // Stop typing indicator
+  clearTimeout(_typT);
+  socket.emit('stop typing',{sender:S.sender});
+
+  // Refocus input
+  setTimeout(function(){ var i2=document.getElementById('msg-input'); if(i2)i2.focus(); },50);
 }
 
 /* ── FILE ───────────────────────────────────────────────────────── */
