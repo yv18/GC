@@ -896,8 +896,16 @@ socket.on('reaction update', function(d){
   }
   render();
 });
-socket.on('typing',    function(d){if(d.sender!==G.sender&&G.typing.indexOf(d.sender)===-1)G.typing.push(d.sender);updSub();render();if(G.atBot)scrollBot();});
-socket.on('stop typing',function(d){G.typing=G.typing.filter(function(u){return u!==d.sender;});updSub();render();});
+socket.on('typing',    function(d){
+  if(d.sender!==G.sender&&G.typing.indexOf(d.sender)===-1) G.typing.push(d.sender);
+  updSub();
+  updTypingBubble();
+});
+socket.on('stop typing',function(d){
+  G.typing=G.typing.filter(function(u){return u!==d.sender;});
+  updSub();
+  updTypingBubble();
+});
 socket.on('user list', function(u){G.users=u||[];renderUsers();updSub();});
 socket.on('cinematic moment',function(d){G.cinId=d.msgId;toast('Cinematic Moment! 🎉','celebration','#f59e0b');confetti();render();setTimeout(function(){G.cinId=null;render();},5000);});
 socket.on('room joined',function(d){G.roomId=d.room;G.roomName=d.name;G.spectator=!!d.spectator;G.msgs=[];closeRooms();render();updRoomUI();toast((G.spectator?'Spectator: #':'Joined #')+d.name,'meeting_room','#10b981');});
@@ -1113,11 +1121,13 @@ function render(){
       +'</div></div></div>';
   });
 
-  // Typing
-  if(G.typing.length){
-    html+='<div class="typrow"><div style="width:30px;flex-shrink:0"></div><div class="typbub"><span class="tdot"></span><span class="tdot"></span><span class="tdot"></span></div></div>';
-  }
   el.innerHTML=html;
+  // Re-add typing bubble if needed (without triggering blur)
+  if(G.typing.length){
+    var div=document.createElement('div');
+    div.innerHTML='<div class="typrow"><div style="width:30px;flex-shrink:0"></div><div class="typbub"><span class="tdot"></span><span class="tdot"></span><span class="tdot"></span></div></div>';
+    el.appendChild(div.firstChild);
+  }
 }
 
 /* ─── EVENT DELEGATION (attached once, handles all message clicks) ─ */
@@ -1218,7 +1228,26 @@ function doReact(msgId,emoji){
   if(_cin[msgId].length>=5){socket.emit('cinematic check',{msgId:msgId});_cin[msgId]=[];}
 }
 
-/* ─── SEND ──────────────────────────────────────────────────────── */
+/* ─── TYPING BUBBLE (no full render) ───────────────────────────── */
+function updTypingBubble(){
+  var el=document.getElementById('msgs');
+  var existing=el.querySelector('.typrow');
+  if(!G.typing.length){
+    if(existing) existing.parentNode.removeChild(existing);
+    return;
+  }
+  // Build typing row HTML
+  var html='<div class="typrow"><div style="width:30px;flex-shrink:0"></div>'
+    +'<div class="typbub"><span class="tdot"></span><span class="tdot"></span><span class="tdot"></span></div></div>';
+  if(existing){
+    // Already there — leave it (avoid DOM thrash)
+    return;
+  }
+  var div=document.createElement('div');
+  div.innerHTML=html;
+  el.appendChild(div.firstChild);
+  if(G.atBot) scrollBot();
+}
 var _typT=null;
 function onInpChange(){
   var v=document.getElementById('msginput').value;
